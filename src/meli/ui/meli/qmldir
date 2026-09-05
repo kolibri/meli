@@ -1,4 +1,9 @@
 module meli
 
 Main 1.0 Main.qml
-GlobalToolbar 1.0 GlobalToolbar.qml
+GlobalToolbar 1.0 components/GlobalToolbar.qml
+LibraryView 1.0 components/LibraryView.qml
+
+CreateLibraryDialog 1.0 dialogs/CreateLibraryDialog.qml
+OpenLibraryDialog 1.0 dialogs/OpenLibraryDialog.qml
+AddDirectoryDialog 1.0 dialogs/AddDirectoryDialog.qml

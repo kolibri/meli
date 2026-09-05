@@ -1,7 +1,13 @@
 import sqlite3
 from pathlib import Path
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
+from PySide6.QtCore import (
+    QAbstractTableModel,
+    QModelIndex,
+    QSortFilterProxyModel,
+    Qt,
+    Slot,
+)
 
 
 class VideoTableModel(QAbstractTableModel):
@@ -95,3 +101,23 @@ class VideoTableModel(QAbstractTableModel):
                 connection.close()
 
         self.endResetModel()
+
+
+class VideoSortFilterModel(QSortFilterProxyModel):
+    def __init__(self):
+        super().__init__()
+
+        self.setDynamicSortFilter(True)
+        self.setSortCaseSensitivity(
+            Qt.CaseSensitivity.CaseInsensitive
+        )
+
+    @Slot(int, bool)
+    def sortByColumn(self, column: int, ascending: bool) -> None:
+        order = (
+            Qt.SortOrder.AscendingOrder
+            if ascending
+            else Qt.SortOrder.DescendingOrder
+        )
+
+        self.sort(column, order)

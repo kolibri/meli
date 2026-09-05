@@ -1,11 +1,12 @@
 import sys
 from pathlib import Path
 
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 
 from meli.library import LibraryController
-from meli.video_model import VideoTableModel
+from meli.video_model import VideoSortFilterModel, VideoTableModel
 
 
 def main() -> int:
@@ -17,7 +18,16 @@ def main() -> int:
     engine = QQmlApplicationEngine()
 
     library_controller = LibraryController()
-    video_model = VideoTableModel(library_controller)
+
+    video_source_model = VideoTableModel(library_controller)
+
+    video_model = VideoSortFilterModel()
+    video_model.setSourceModel(video_source_model)
+    video_model.sort(
+        0,
+        Qt.SortOrder.AscendingOrder,
+    )
+
     engine.rootContext().setContextProperty(
         "libraryController",
         library_controller,

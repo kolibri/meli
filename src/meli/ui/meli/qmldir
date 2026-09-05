@@ -1,0 +1,4 @@
+module meli
+
+Main 1.0 Main.qml
+GlobalToolbar 1.0 GlobalToolbar.qml

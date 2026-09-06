@@ -15,9 +15,10 @@ def main() -> int:
     app.setOrganizationName("meli")
     app.setApplicationName("meli")
 
-    engine = QQmlApplicationEngine()
+    engine = QQmlApplicationEngine(app)
 
     library_controller = LibraryController()
+    library_controller.setParent(app)
 
     video_source_model = VideoTableModel(library_controller)
 

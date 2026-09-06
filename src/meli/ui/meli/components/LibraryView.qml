@@ -1,12 +1,58 @@
 import QtQuick
 import QtQuick.Controls
 import QtQml.Models
+import QtCore
 
 Item {
     id: root
 
     property int sortColumn: 0
     property bool sortAscending: true
+
+    Settings {
+        id: settings
+        category: "LibraryView"
+    }
+
+    function saveColumnWidths() {
+        const widths = []
+
+        for (let column = 0; column < tableView.columns; ++column) {
+            widths.push(tableView.explicitColumnWidth(column))
+        }
+
+        settings.setValue(
+            "columnWidths",
+            JSON.stringify(widths)
+        )
+    }
+
+    function restoreColumnWidths() {
+        const stored = settings.value("columnWidths", "")
+
+        if (!stored) {
+            return
+        }
+
+        const widths = JSON.parse(stored)
+
+        for (let column = 0; column < widths.length; ++column) {
+            if (widths[column] >= 0) {
+                tableView.setColumnWidth(
+                    column,
+                    widths[column]
+                )
+            }
+        }
+    }
+
+    Component.onCompleted: {
+        restoreColumnWidths()
+    }
+
+    Component.onDestruction: {
+        saveColumnWidths()
+    }
 
     function sortByColumn(column) {
         if (sortColumn === column) {
@@ -36,22 +82,28 @@ Item {
         movableColumns: false
 
         delegate: HorizontalHeaderViewDelegate {
+            id: headerDelegate
+
             required property int index
-            required property string modelData
 
-
-            text: {
-                if (root.sortColumn !== index) {
-                    return modelData
+             TapHandler {
+                onTapped: {
+                    root.sortByColumn(headerDelegate.index)
                 }
-
-                return modelData + (
-                    root.sortAscending ? " ▲" : " ▼"
-                )
             }
 
-            onClicked: {
-                root.sortByColumn(index)
+            Label {
+                anchors.right: parent.right
+                anchors.rightMargin: 8
+                anchors.verticalCenter: parent.verticalCenter
+
+                text: {
+                    if (root.sortColumn !== headerDelegate.index) {
+                        return ""
+                    }
+
+                    return root.sortAscending ? "▲" : "▼"
+                }
             }
         }
     }

@@ -1,14 +1,24 @@
+
+mod database;
+mod scanner;
+mod settings;
+mod thumbnails;
+
 use base64::{engine::general_purpose::STANDARD, Engine as _};
-use serde::{Deserialize, Serialize};
+use database::open_library_db;
+use rusqlite::params;
+use scanner::{collect_videos, probe_duration};
+use serde::Serialize;
+use settings::save_storage_dir;
+pub(crate) use settings::read_storage_dir;
 use std::{
     collections::hash_map::DefaultHasher,
     fs,
     hash::{Hash, Hasher},
-    path::{Path, PathBuf},
-    process::Command,
+    path::PathBuf,
 };
-use rusqlite::{params, Connection};
-use tauri::Manager;
+use tauri::AppHandle;
+use thumbnails::extract_frames;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -23,49 +33,15 @@ struct VideoFile {
     frames: Vec<String>,
 }
 
-
-#[derive(Serialize, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
-struct AppSettings {
-    storage_dir: Option<String>,
-}
-
-
-
-fn settings_file(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let config_dir = app
-        .path()
-        .app_config_dir()
-        .map_err(|e| e.to_string())?;
-
-    fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
-
-    Ok(config_dir.join("settings.json"))
-}
-
-fn read_storage_dir(app: &tauri::AppHandle) -> Result<Option<PathBuf>, String> {
-    let file = settings_file(app)?;
-
-    if !file.exists() {
-        return Ok(None);
-    }
-
-    let contents = fs::read_to_string(file).map_err(|e| e.to_string())?;
-    let settings: AppSettings =
-        serde_json::from_str(&contents).map_err(|e| e.to_string())?;
-
-    Ok(settings.storage_dir.map(PathBuf::from))
-}
-
 #[tauri::command]
-fn get_storage_dir(app: tauri::AppHandle) -> Result<Option<String>, String> {
+fn get_storage_dir(app: AppHandle) -> Result<Option<String>, String> {
     Ok(read_storage_dir(&app)?
         .map(|path| path.to_string_lossy().into_owned()))
 }
 
 #[tauri::command]
 fn set_storage_dir(
-    app: tauri::AppHandle,
+    app: AppHandle,
     storage_dir: String,
 ) -> Result<String, String> {
     let requested_path = PathBuf::from(&storage_dir);
@@ -82,19 +58,10 @@ fn set_storage_dir(
     let thumbnails_dir = directory.join("thumbnails");
     fs::create_dir_all(&thumbnails_dir).map_err(|e| e.to_string())?;
 
-    let settings = AppSettings {
-        storage_dir: Some(directory.to_string_lossy().into_owned()),
-    };
+    save_storage_dir(&app, directory.clone())?;
 
-    let file = settings_file(&app)?;
-    let temporary_file = file.with_extension("json.tmp");
-
-    let contents =
-        serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?;
-
-    fs::write(&temporary_file, contents).map_err(|e| e.to_string())?;
-    fs::rename(&temporary_file, &file).map_err(|e| e.to_string())?;
     let _connection = open_library_db(&app)?;
+
     Ok(directory.to_string_lossy().into_owned())
 }
 
@@ -105,7 +72,7 @@ fn greet(name: &str) -> String {
 
 #[tauri::command]
 fn scan_video_folder(
-    app: tauri::AppHandle,
+    app: AppHandle,
     folder_path: String,
 ) -> Result<Vec<VideoFile>, String> {
     let root = PathBuf::from(&folder_path);
@@ -184,73 +151,9 @@ fn scan_video_folder(
     Ok(videos)
 }
 
-fn probe_duration(path: &Path) -> f64 {
-    let output = match Command::new("ffprobe")
-        .args([
-            "-v",
-            "error",
-            "-show_entries",
-            "format=duration",
-            "-of",
-            "default=noprint_wrappers=1:nokey=1",
-        ])
-        .arg(path)
-        .output()
-    {
-        Ok(output) if output.status.success() => output,
-        _ => return -1.0,
-    };
-
-    String::from_utf8_lossy(&output.stdout)
-        .trim()
-        .parse::<f64>()
-        .ok()
-        .filter(|duration| duration.is_finite() && *duration > 0.0)
-        .unwrap_or(-1.0)
-}
-
-fn extract_frames(path: &Path, duration: f64, cache_dir: &Path) {
-    if duration <= 0.0 || !duration.is_finite() {
-        return;
-    }
-
-    let marker = cache_dir.join(".complete");
-
-    // A completed cache is reused, even if extraction produced no frames.
-    if marker.exists() {
-        return;
-    }
-
-    let output_pattern = cache_dir.join("frame-%02d.jpg");
-    let filter = format!(
-        "fps=10/{duration:.6},scale=160:90:force_original_aspect_ratio=decrease,\
-pad=160:90:(ow-iw)/2:(oh-ih)/2"
-    );
-
-    let result = Command::new("ffmpeg")
-        .args(["-hide_banner", "-loglevel", "error", "-nostdin", "-y"])
-        .arg("-i")
-        .arg(path)
-        .args(["-vf", &filter, "-frames:v", "10", "-q:v", "5"])
-        .arg(&output_pattern)
-        .output();
-
-    if let Ok(output) = result {
-        if !output.status.success() {
-            eprintln!(
-                "Thumbnail extraction failed for {}: {}",
-                path.display(),
-                String::from_utf8_lossy(&output.stderr)
-            );
-        }
-    }
-
-    // Prevent repeatedly retrying an unreadable video on every visit.
-    let _ = fs::write(marker, b"complete");
-}
 #[tauri::command]
 fn get_video_frames(
-    app: tauri::AppHandle,
+    app: AppHandle,
     video_path: String,
     duration: f64,
 ) -> Result<Vec<String>, String> {
@@ -310,80 +213,8 @@ fn get_video_frames(
     Ok(frames)
 }
 
-fn collect_videos(
-    directory: &Path,
-    videos: &mut Vec<PathBuf>,
-) -> std::io::Result<()> {
-    const EXTENSIONS: &[&str] = &[
-        "mp4", "mkv", "avi", "mov", "webm", "m4v", "mpg",
-        "mpeg", "wmv", "flv", "ts", "mts", "m2ts", "3gp", "ogv",
-    ];
-
-    for entry in fs::read_dir(directory)? {
-        let entry = entry?;
-        let file_type = entry.file_type()?;
-        let path = entry.path();
-
-        if file_type.is_dir() {
-            collect_videos(&path, videos)?;
-        } else if file_type.is_file() {
-            let is_video = path
-                .extension()
-                .and_then(|ext| ext.to_str())
-                .map(|ext| EXTENSIONS.iter().any(|known| ext.eq_ignore_ascii_case(known)))
-                .unwrap_or(false);
-
-            if is_video {
-                videos.push(path);
-            }
-        }
-    }
-
-    Ok(())
-}
-
-
-fn open_library_db(app: &tauri::AppHandle) -> Result<Connection, String> {
-    let storage_dir = read_storage_dir(app)?
-        .ok_or_else(|| "Choose a storage location first".to_string())?;
-
-    if !storage_dir.is_dir() {
-        return Err(format!(
-            "Storage directory is unavailable: {}",
-            storage_dir.display()
-        ));
-    }
-
-    let db_path = storage_dir.join("library.sqlite");
-    let connection = Connection::open(db_path).map_err(|e| e.to_string())?;
-
-    connection
-        .execute_batch(
-            "
-            PRAGMA foreign_keys = ON;
-
-            CREATE TABLE IF NOT EXISTS library_folders (
-                path TEXT PRIMARY KEY
-            );
-
-            CREATE TABLE IF NOT EXISTS videos (
-                path TEXT PRIMARY KEY,
-                filename TEXT NOT NULL,
-                size INTEGER NOT NULL,
-                duration REAL NOT NULL,
-                tags_json TEXT NOT NULL DEFAULT '[]',
-                rating INTEGER NOT NULL DEFAULT 0
-                    CHECK (rating BETWEEN 0 AND 5)
-            );
-            ",
-        )
-        .map_err(|e| e.to_string())?;
-
-    Ok(connection)
-}
-
 #[tauri::command]
-fn load_library(app: tauri::AppHandle) -> Result<Vec<VideoFile>, String> {
+fn load_library(app: AppHandle) -> Result<Vec<VideoFile>, String> {
     let connection = open_library_db(&app)?;
 
     let mut statement = connection

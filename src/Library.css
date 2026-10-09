@@ -184,3 +184,21 @@
     color: #9ca3af;
     text-align: center;
 }
+
+.library-add-folder {
+    padding: 8px 12px;
+    border: 1px solid var(--border-color, #555);
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.library-add-folder:disabled {
+    cursor: wait;
+    opacity: 0.6;
+}
+
+.library-import-error {
+    color: #d9534f;
+    font-size: 0.875rem;
+}
+

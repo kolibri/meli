@@ -10,10 +10,12 @@ import {
     type ColumnDef,
 } from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { videos } from './data'
+import { invoke } from '@tauri-apps/api/core'
+import { open } from '@tauri-apps/plugin-dialog'
 
 type Video = {
-    id: string | number
+    id: string
+    path: string
     filename: string
     size: number
     duration: number
@@ -21,8 +23,6 @@ type Video = {
     rating: number
     frames: string[]
 }
-
-const videoData = videos as unknown as Video[]
 
 const features = tableFeatures({
     columnSizingFeature,
@@ -60,6 +60,7 @@ function formatDuration(seconds: number): string {
 
     return `${minutes}:${String(secs).padStart(2, '0')}`
 }
+
 
 const columns: ColumnDef<typeof features, Video>[] = [
     {
@@ -159,8 +160,47 @@ const columns: ColumnDef<typeof features, Video>[] = [
 ]
 
 export function Library() {
+    const [videoData, setVideoData] = useState<Video[]>([])
+    const [isImporting, setIsImporting] = useState(false)
+    const [importError, setImportError] = useState('')
+
+        // Keep the rest of the existing component here.
     const [search, setSearch] = useState('')
     const scrollRef = useRef<HTMLDivElement>(null)
+
+    async function handleAddFolder() {
+        const selected = await open({
+            directory: true,
+            multiple: false,
+            title: 'Select video folder',
+        })
+
+        if (typeof selected !== 'string') return
+
+        setIsImporting(true)
+        setImportError('')
+
+        try {
+            const found = await invoke<Video[]>('scan_video_folder', {
+                folderPath: selected,
+            })
+
+            setVideoData(current => {
+                const byPath = new Map(current.map(video => [video.id, video]))
+
+                for (const video of found) {
+                    byPath.set(video.id, video)
+                }
+
+                return Array.from(byPath.values())
+            })
+        } catch (error) {
+            setImportError(String(error))
+        } finally {
+            setIsImporting(false)
+        }
+    }
+
 
     const filteredVideos = useMemo(() => {
         const query = search.trim().toLowerCase()
@@ -176,7 +216,7 @@ export function Library() {
                 tags.some((tag) => tag.toLowerCase().includes(query))
             )
         })
-    }, [search])
+    }, [search, videoData])
 
     const table = useTable({
         features,
@@ -211,6 +251,21 @@ export function Library() {
                         {rows.length} {rows.length === 1 ? 'video' : 'videos'}
                     </div>
                 </div>
+
+                <button
+                    type="button"
+                    className="library-add-folder"
+                    onClick={handleAddFolder}
+                    disabled={isImporting}
+                >
+                    {isImporting ? 'Scanning…' : 'Add Folder'}
+                </button>
+
+                {importError && (
+                    <p className="library-import-error" role="alert">
+                        Could not scan folder: {importError}
+                    </p>
+                )}
 
                 <input
                     className="library-search"

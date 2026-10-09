@@ -1,6 +1,6 @@
 import "./Library.css";
 
-import { useMemo, useRef, useState } from 'react'
+import {useEffect, useMemo, useRef, useState} from 'react'
 import {
     columnSizingFeature,
     createSortedRowModel,
@@ -9,9 +9,9 @@ import {
     useTable,
     type ColumnDef,
 } from '@tanstack/react-table'
-import { useVirtualizer } from '@tanstack/react-virtual'
-import { invoke } from '@tauri-apps/api/core'
-import { open } from '@tauri-apps/plugin-dialog'
+import {useVirtualizer} from '@tanstack/react-virtual'
+import {invoke} from '@tauri-apps/api/core'
+import {open} from '@tauri-apps/plugin-dialog'
 
 type Video = {
     id: string
@@ -83,7 +83,7 @@ const columns: ColumnDef<typeof features, Video>[] = [
 
             return (
                 <div className="filmstrip">
-                    {Array.from({ length: 10 }, (_, index) => {
+                    {Array.from({length: 10}, (_, index) => {
                         const frame = frames[index]
 
                         return (
@@ -163,10 +163,36 @@ export function Library() {
     const [videoData, setVideoData] = useState<Video[]>([])
     const [isImporting, setIsImporting] = useState(false)
     const [importError, setImportError] = useState('')
+    const requestedFrames = useRef<Set<string>>(new Set())
+    const [storageDir, setStorageDir] = useState<string | null>(null)
+    const [storageLoading, setStorageLoading] = useState(true)
+    const [storageError, setStorageError] = useState('')
 
-        // Keep the rest of the existing component here.
+    // Keep the rest of the existing component here.
     const [search, setSearch] = useState('')
     const scrollRef = useRef<HTMLDivElement>(null)
+
+    async function handleChooseStorage() {
+        setStorageError('')
+
+        try {
+            const selected = await open({
+                directory: true,
+                multiple: false,
+                title: 'Choose library storage location',
+            })
+
+            if (typeof selected !== 'string') return
+
+            const saved = await invoke<string>('set_storage_dir', {
+                storageDir: selected,
+            })
+
+            setStorageDir(saved)
+        } catch (error) {
+            setStorageError(String(error))
+        }
+    }
 
     async function handleAddFolder() {
         const selected = await open({
@@ -184,6 +210,9 @@ export function Library() {
             const found = await invoke<Video[]>('scan_video_folder', {
                 folderPath: selected,
             })
+            for (const video of found) {
+                requestedFrames.current.delete(video.id)
+            }
 
             setVideoData(current => {
                 const byPath = new Map(current.map(video => [video.id, video]))
@@ -235,6 +264,64 @@ export function Library() {
     })
 
     const virtualRows = virtualizer.getVirtualItems()
+    useEffect(() => {
+        if (!storageDir) return
+        for (const virtualRow of virtualRows) {
+            const video = rows[virtualRow.index]?.original
+
+            if (!video || video.frames.length > 0) continue
+            if (requestedFrames.current.has(video.id)) continue
+
+            requestedFrames.current.add(video.id)
+
+            invoke<string[]>('get_video_frames', {
+                videoPath: video.path,
+                duration: video.duration,
+            })
+                .then((frames) => {
+                    setVideoData((current) =>
+                        current.map((item) =>
+                            item.id === video.id
+                                ? {...item, frames}
+                                : item
+                        )
+                    )
+                })
+                .catch((error) => {
+                    console.error(
+                        `Could not load thumbnails for ${video.filename}:`,
+                        error
+                    )
+                })
+        }
+    }, [virtualRows, rows, videoData, storageDir])
+
+    useEffect(() => {
+        invoke<string | null>('get_storage_dir')
+            .then(setStorageDir)
+            .catch((error) => setStorageError(String(error)))
+            .finally(() => setStorageLoading(false))
+    }, [])
+
+    useEffect(() => {
+        if (!storageDir) return
+
+        let cancelled = false
+        requestedFrames.current.clear()
+
+        invoke<Video[]>('load_library')
+            .then((videos) => {
+                if (!cancelled) setVideoData(videos)
+            })
+            .catch((error) => {
+                if (!cancelled) setStorageError(String(error))
+            })
+
+        return () => {
+            cancelled = true
+        }
+    }, [storageDir])
+    
     const totalHeight = virtualizer.getTotalSize()
     const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0
     const paddingBottom =
@@ -252,11 +339,37 @@ export function Library() {
                     </div>
                 </div>
 
+                <div className="library-storage">
+                    <div className="library-storage-info">
+                        <strong>Storage</strong>
+                        <span title={storageDir ?? undefined}>
+                            {storageLoading
+                                ? 'Loading…'
+                                : storageDir ?? 'Not configured'}
+                        </span>
+                    </div>
+
+                    <button
+                        type="button"
+                        className="library-add-folder"
+                        onClick={handleChooseStorage}
+                        disabled={storageLoading}
+                    >
+                        {storageDir ? 'Change Storage' : 'Choose Storage'}
+                    </button>
+                </div>
+
+                {storageError && (
+                    <p className="library-import-error" role="alert">
+                        Storage error: {storageError}
+                    </p>
+                )}
+
                 <button
                     type="button"
                     className="library-add-folder"
                     onClick={handleAddFolder}
-                    disabled={isImporting}
+                    disabled={isImporting || storageLoading || !storageDir}
                 >
                     {isImporting ? 'Scanning…' : 'Add Folder'}
                 </button>
@@ -300,7 +413,7 @@ export function Library() {
                                                     className="sort-button"
                                                     onClick={header.column.getToggleSortingHandler()}
                                                 >
-                                                    <table.FlexRender header={header} />
+                                                    <table.FlexRender header={header}/>
                                                     <span aria-hidden="true">
                               {sorted === 'asc'
                                   ? '↑'
@@ -310,7 +423,7 @@ export function Library() {
                             </span>
                                                 </button>
                                             ) : (
-                                                <table.FlexRender header={header} />
+                                                <table.FlexRender header={header}/>
                                             )
                                         )}
                                     </th>
@@ -350,11 +463,11 @@ export function Library() {
                                 return (
                                     <tr
                                         key={row.id}
-                                        style={{ height: virtualRow.size }}
+                                        style={{height: virtualRow.size}}
                                     >
                                         {row.getAllCells().map((cell) => (
                                             <td key={cell.id}>
-                                                <table.FlexRender cell={cell} />
+                                                <table.FlexRender cell={cell}/>
                                             </td>
                                         ))}
                                     </tr>

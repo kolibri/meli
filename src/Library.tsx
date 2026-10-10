@@ -12,6 +12,8 @@ import { VideoTable } from './library/components/VideoTable'
 export function Library() {
     const requestedFrames = useRef<Set<string>>(new Set())
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+    const [selectedTag, setSelectedTag] = useState<string | null>(null)
+    const [ratingFilter, setRatingFilter] = useState<number | 'unrated' | null>(null)
     const [playbackError, setPlaybackError] = useState('')
     const [metadataError, setMetadataError] = useState('')
 
@@ -33,6 +35,53 @@ export function Library() {
         setSearch,
         filteredVideos,
     } = useLibrary(storageDir, setStorageError, requestedFrames)
+
+    const tagCounts = new Map<string, number>()
+    const tagNames = new Map<string, string>()
+
+    for (const video of videoData) {
+        const tagsOnVideo = new Set<string>()
+
+        for (const rawTag of video.tags ?? []) {
+            const tag = rawTag.trim()
+            if (!tag) continue
+
+            const key = tag.toLocaleLowerCase()
+
+            if (!tagsOnVideo.has(key)) {
+                tagsOnVideo.add(key)
+                tagNames.set(key, tagNames.get(key) ?? tag)
+                tagCounts.set(key, (tagCounts.get(key) ?? 0) + 1)
+            }
+        }
+    }
+
+    const availableTags = [...tagNames.entries()]
+        .map(([key, name]) => ({
+            key,
+            name,
+            count: tagCounts.get(key) ?? 0,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+
+
+    const visibleVideos = filteredVideos.filter((video) => {
+        const matchesTag =
+            selectedTag === null ||
+            (video.tags ?? []).some(
+                (tag) => tag.trim().toLocaleLowerCase() === selectedTag,
+            )
+
+        const rating = Number(video.rating) || 0
+
+        const matchesRating =
+            ratingFilter === null ||
+            (ratingFilter === 'unrated'
+                ? rating === 0
+                : rating >= ratingFilter)
+
+        return matchesTag && matchesRating
+    })
 
     const selectedVideos = videoData.filter(
         (video) => selectedIds.has(video.id),
@@ -56,7 +105,7 @@ export function Library() {
         setSelectedIds((current) => {
             const next = new Set(current)
 
-            for (const video of filteredVideos) {
+            for (const video of visibleVideos) {
                 next.add(video.id)
             }
 
@@ -131,7 +180,7 @@ export function Library() {
     return (
         <main className="library">
             <LibraryToolbar
-                videoCount={filteredVideos.length}
+                videoCount={visibleVideos.length}
                 storageDir={storageDir}
                 storageLoading={storageLoading}
                 storageError={storageError}
@@ -153,17 +202,162 @@ export function Library() {
                 metadataError={metadataError}
             />
 
-            <VideoTable
-                videos={filteredVideos}
-                setVideoData={setVideoData}
-                storageDir={storageDir}
-                requestedFrames={requestedFrames}
-                selectedIds={selectedIds}
-                onToggleSelection={handleToggleSelection}
-                onPlayVideo={(path) => handlePlayVideos([path])}
-                onRatingChange={handleRatingChange}
-                onTagsChange={handleTagsChange}
-            />
+            <div className="library-content">
+                <aside className="library-sidebar" aria-label="Library filters">
+                    <h2 className="library-sidebar-heading">Library</h2>
+
+                    <button
+                        type="button"
+                        className={`library-filter-item${selectedTag === null ? ' active' : ''}`}
+                        aria-pressed={selectedTag === null}
+                        onClick={() => setSelectedTag(null)}
+                    >
+                        <span className="library-filter-label">
+                            <span aria-hidden="true">▤</span>
+                            All videos
+                        </span>
+                        <span className="library-filter-count">
+                            {filteredVideos.length}
+                        </span>
+                    </button>
+
+                    <h3 className="library-sidebar-heading library-tags-heading">
+                        Rating
+                    </h3>
+
+                    <div className="library-tag-list">
+                        <button
+                            type="button"
+                            className={`library-filter-item${ratingFilter === null ? ' active' : ''}`}
+                            aria-pressed={ratingFilter === null}
+                            onClick={() => setRatingFilter(null)}
+                        >
+                            <span className="library-filter-label">All ratings</span>
+                            <span className="library-filter-count">
+            {videoData.length}
+        </span>
+                        </button>
+
+                        {[5, 4, 3, 2, 1].map((minimum) => (
+                            <button
+                                key={minimum}
+                                type="button"
+                                className={`library-filter-item${ratingFilter === minimum ? ' active' : ''}`}
+                                aria-pressed={ratingFilter === minimum}
+                                onClick={() => setRatingFilter(minimum)}
+                            >
+            <span className="library-filter-label">
+                {'★'.repeat(minimum)}{'☆'.repeat(5 - minimum)}
+                <span> and up</span>
+            </span>
+                                <span className="library-filter-count">
+                {videoData.filter(
+                    (video) => (Number(video.rating) || 0) >= minimum,
+                ).length}
+            </span>
+                            </button>
+                        ))}
+
+                        <button
+                            type="button"
+                            className={`library-filter-item${ratingFilter === 'unrated' ? ' active' : ''}`}
+                            aria-pressed={ratingFilter === 'unrated'}
+                            onClick={() => setRatingFilter('unrated')}
+                        >
+                            <span className="library-filter-label">Not rated</span>
+                            <span className="library-filter-count">
+            {videoData.filter(
+                (video) => (Number(video.rating) || 0) === 0,
+            ).length}
+        </span>
+                        </button>
+                    </div>
+
+                    <h3 className="library-sidebar-heading library-tags-heading">
+                        Tags
+                    </h3>
+
+                    {availableTags.length === 0 ? (
+                        <p className="library-sidebar-empty">
+                            No tags yet
+                        </p>
+                    ) : (
+                        <div className="library-tag-list">
+                            {availableTags.map((tag) => (
+                                <button
+                                    key={tag.key}
+                                    type="button"
+                                    className={`library-filter-item${selectedTag === tag.key ? ' active' : ''}`}
+                                    aria-pressed={selectedTag === tag.key}
+                                    title={tag.name}
+                                    onClick={() =>
+                                        setSelectedTag((current) =>
+                                            current === tag.key ? null : tag.key,
+                                        )
+                                    }
+                                >
+                                    <span className="library-filter-label">
+                                        <span aria-hidden="true">#</span>
+                                        <span className="library-filter-name">
+                                            {tag.name}
+                                        </span>
+                                    </span>
+                                    <span className="library-filter-count">
+                                        {tag.count}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </aside>
+
+                <section className="library-results" aria-label="Video results">
+
+                    {(selectedTag !== null || ratingFilter !== null) && (
+                        <div className="library-active-filter">
+                            {selectedTag !== null && (
+                                <span>
+                Tag: <strong>{tagNames.get(selectedTag) ?? selectedTag}</strong>
+            </span>
+                            )}
+
+                            {ratingFilter !== null && (
+                                <span>
+                Rating:{' '}
+                                    <strong>
+                    {ratingFilter === 'unrated'
+                        ? 'Not rated'
+                        : `${ratingFilter}+ stars`}
+                </strong>
+            </span>
+                            )}
+
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setSelectedTag(null)
+                                    setRatingFilter(null)
+                                }}
+                                title="Clear all filters"
+                            >
+                                Clear filters
+                            </button>
+                        </div>
+                    )}
+
+                    <VideoTable
+                        videos={visibleVideos}
+                        setVideoData={setVideoData}
+                        storageDir={storageDir}
+                        requestedFrames={requestedFrames}
+                        selectedIds={selectedIds}
+                        onToggleSelection={handleToggleSelection}
+                        onPlayVideo={(path) => handlePlayVideos([path])}
+                        onRatingChange={handleRatingChange}
+                        onTagsChange={handleTagsChange}
+                    />
+                </section>
+            </div>
         </main>
     )
 }

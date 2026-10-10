@@ -653,3 +653,12 @@
 .library .playlist-actions button {
     padding: 6px 10px;
 }
+
+
+.library .nf-icon {
+    font-family: "Symbols Nerd Font", "Symbols Nerd Font Mono",
+    "Font Awesome 6 Free", sans-serif;
+    font-size: 14px;
+    font-weight: normal;
+    line-height: 1;
+}

@@ -320,7 +320,9 @@ export function Library() {
                                         )
                                     }
                                 >
-                                    <span aria-hidden="true">+</span>
+
+                                    <span className="nf-icon" aria-hidden="true">{'\uf067'}</span>
+
                                 </button>
 
                                 <button
@@ -333,7 +335,9 @@ export function Library() {
                                         if (name) void renamePlaylist(playlist.id, name)
                                     }}
                                 >
-                                    <span aria-hidden="true">✎</span>
+
+                                    <span className="nf-icon" aria-hidden="true">{'\uf040'}</span>
+
                                 </button>
 
                                 <button
@@ -347,7 +351,9 @@ export function Library() {
                                         }
                                     }}
                                 >
-                                    <span aria-hidden="true">×</span>
+
+                                    <span className="nf-icon" aria-hidden="true">{'\uf1f8'}</span>
+
                                 </button>
 
                             </div>

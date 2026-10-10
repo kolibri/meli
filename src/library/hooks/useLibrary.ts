@@ -59,24 +59,72 @@ export function useLibrary(
         }
     }
 
-    useEffect(() => {
-        if (!storageDir) return
+useEffect(() => {
+    if (!storageDir) return
 
-        let cancelled = false
-        requestedFrames.current.clear()
+    let cancelled = false
+    requestedFrames.current.clear()
 
-        invoke<Video[]>('load_library')
-            .then((videos) => {
-                if (!cancelled) setVideoData(videos)
-            })
-            .catch((error) => {
-                if (!cancelled) setStorageError(String(error))
-            })
+    async function loadAndResumeScans() {
+        try {
+            const videos = await invoke<Video[]>('load_library')
 
-        return () => {
-            cancelled = true
+            if (cancelled) return
+            setVideoData(videos)
+
+            const folders = await invoke<string[]>(
+                'load_library_folders',
+            )
+
+            for (const folderPath of folders) {
+                if (cancelled) return
+
+                try {
+                    const found = await invoke<Video[]>(
+                        'scan_video_folder',
+                        { folderPath },
+                    )
+
+                    if (cancelled) return
+
+                    setVideoData((current) => {
+                        const byPath = new Map(
+                            current.map((video) => [video.id, video]),
+                        )
+
+                        for (const video of found) {
+                            const existing = byPath.get(video.id)
+
+                            byPath.set(video.id, {
+                                ...video,
+                                frames: existing?.frames ?? video.frames,
+                            })
+                        }
+
+                        return Array.from(byPath.values())
+                    })
+                } catch (error) {
+                    if (!cancelled) {
+                        setImportError(
+                            `Could not resume scanning "${folderPath}": ${String(error)}`,
+                        )
+                    }
+                }
+            }
+        } catch (error) {
+            if (!cancelled) {
+                setStorageError(String(error))
+            }
         }
-    }, [storageDir, setStorageError, requestedFrames])
+    }
+
+    void loadAndResumeScans()
+
+    return () => {
+        cancelled = true
+    }
+}, [storageDir, setStorageError, requestedFrames])
+
 
     const filteredVideos = useMemo(() => {
         const query = search.trim().toLowerCase()

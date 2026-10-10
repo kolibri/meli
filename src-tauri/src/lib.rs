@@ -79,7 +79,19 @@ fn greet(name: &str) -> String {
 }
 
 #[tauri::command]
-fn scan_video_folder(
+async fn scan_video_folder(
+    app: AppHandle,
+    folder_path: String,
+) -> Result<Vec<VideoFile>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        scan_video_folder_blocking(app, folder_path)
+    })
+    .await
+    .map_err(|error| format!("Folder scan worker failed: {error}"))?
+}
+
+
+fn scan_video_folder_blocking(
     app: AppHandle,
     folder_path: String,
 ) -> Result<Vec<VideoFile>, String> {
@@ -160,7 +172,20 @@ fn scan_video_folder(
 }
 
 #[tauri::command]
-fn get_video_frames(
+async fn get_video_frames(
+    app: AppHandle,
+    video_path: String,
+    duration: f64,
+) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        get_video_frames_blocking(app, video_path, duration)
+    })
+    .await
+    .map_err(|error| format!("Thumbnail worker failed: {error}"))?
+}
+
+
+fn get_video_frames_blocking(
     app: AppHandle,
     video_path: String,
     duration: f64,
@@ -219,6 +244,23 @@ fn get_video_frames(
     }
 
     Ok(frames)
+}
+
+#[tauri::command]
+fn load_library_folders(app: AppHandle) -> Result<Vec<String>, String> {
+    let connection = open_library_db(&app)?;
+
+    let mut statement = connection
+        .prepare("SELECT path FROM library_folders ORDER BY path")
+        .map_err(|e| e.to_string())?;
+
+    let folders = statement
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(folders)
 }
 
 #[tauri::command]
@@ -548,6 +590,7 @@ pub fn run() {
             get_storage_dir,
             set_storage_dir,
             load_library,
+            load_library_folders,
             open_videos_in_vlc,
             update_video_rating,
             update_video_tags,

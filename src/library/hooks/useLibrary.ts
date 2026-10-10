@@ -1,4 +1,3 @@
-
 import { useEffect, useMemo, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { invoke } from '@tauri-apps/api/core'
@@ -59,72 +58,47 @@ export function useLibrary(
         }
     }
 
-useEffect(() => {
-    if (!storageDir) return
+    useEffect(() => {
+        if (!storageDir) return
 
-    let cancelled = false
-    requestedFrames.current.clear()
+        let cancelled = false
+        requestedFrames.current.clear()
 
-    async function loadAndResumeScans() {
-        try {
-            const videos = await invoke<Video[]>('load_library')
+        async function loadLibrary() {
+            try {
+                // Remove records for missing files before loading the UI.
+                const removedCount = await invoke<number>(
+                    'reconcile_missing_videos',
+                )
 
-            if (cancelled) return
-            setVideoData(videos)
-
-            const folders = await invoke<string[]>(
-                'load_library_folders',
-            )
-
-            for (const folderPath of folders) {
                 if (cancelled) return
 
-                try {
-                    const found = await invoke<Video[]>(
-                        'scan_video_folder',
-                        { folderPath },
+                if (removedCount > 0) {
+                    console.info(
+                        `Removed ${removedCount} missing video record(s).`,
                     )
+                }
 
-                    if (cancelled) return
+                const videos = await invoke<Video[]>('load_library')
 
-                    setVideoData((current) => {
-                        const byPath = new Map(
-                            current.map((video) => [video.id, video]),
-                        )
+                if (cancelled) return
 
-                        for (const video of found) {
-                            const existing = byPath.get(video.id)
-
-                            byPath.set(video.id, {
-                                ...video,
-                                frames: existing?.frames ?? video.frames,
-                            })
-                        }
-
-                        return Array.from(byPath.values())
-                    })
-                } catch (error) {
-                    if (!cancelled) {
-                        setImportError(
-                            `Could not resume scanning "${folderPath}": ${String(error)}`,
-                        )
-                    }
+                setVideoData(videos)
+            } catch (error) {
+                if (!cancelled) {
+                    setStorageError(
+                        `Could not reconcile or load the library: ${String(error)}`,
+                    )
                 }
             }
-        } catch (error) {
-            if (!cancelled) {
-                setStorageError(String(error))
-            }
         }
-    }
 
-    void loadAndResumeScans()
+        void loadLibrary()
 
-    return () => {
-        cancelled = true
-    }
-}, [storageDir, setStorageError, requestedFrames])
-
+        return () => {
+            cancelled = true
+        }
+    }, [storageDir, setStorageError, requestedFrames])
 
     const filteredVideos = useMemo(() => {
         const query = search.trim().toLowerCase()

@@ -1,8 +1,8 @@
-
 mod database;
 mod scanner;
 mod settings;
 mod thumbnails;
+mod reconcile;
 
 use std::process::Command;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
@@ -578,6 +578,103 @@ fn open_videos_in_vlc(paths: Vec<String>) -> Result<(), String> {
         })
 }
 
+#[tauri::command]
+async fn reconcile_missing_videos(
+    app: AppHandle,
+) -> Result<usize, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        reconcile::remove_missing_video_records(&app)
+    })
+    .await
+    .map_err(|error| {
+        format!("Reconciliation worker failed: {error}")
+    })?
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DeleteVideosResult {
+    deleted_paths: Vec<String>,
+    errors: Vec<String>,
+}
+
+#[tauri::command]
+async fn delete_video_files(
+    app: AppHandle,
+    paths: Vec<String>,
+) -> Result<DeleteVideosResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        delete_video_files_blocking(app, paths)
+    })
+    .await
+    .map_err(|error| format!("Delete worker failed: {error}"))?
+}
+
+fn delete_video_files_blocking(
+    app: AppHandle,
+    paths: Vec<String>,
+) -> Result<DeleteVideosResult, String> {
+    let mut connection = open_library_db(&app)?;
+    let mut deleted_paths = Vec::new();
+    let mut errors = Vec::new();
+
+    let transaction = connection
+        .transaction()
+        .map_err(|e| e.to_string())?;
+
+    for path in paths {
+        let exists_in_library: bool = transaction
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM videos WHERE path = ?1)",
+                params![path],
+                |row| row.get(0),
+            )
+            .map_err(|e| e.to_string())?;
+
+        if !exists_in_library {
+            errors.push(format!(
+                "{path}: this file is no longer in the library"
+            ));
+            continue;
+        }
+
+        let file_path = PathBuf::from(&path);
+
+        match fs::remove_file(&file_path) {
+            Ok(()) => {}
+            Err(error)
+                if error.kind() == std::io::ErrorKind::NotFound =>
+            {
+                // The file was already removed outside the app.
+            }
+            Err(error) => {
+                errors.push(format!("{path}: {error}"));
+                continue;
+            }
+        }
+
+        match transaction.execute(
+            "DELETE FROM videos WHERE path = ?1",
+            params![path],
+        ) {
+            Ok(_) => deleted_paths.push(path),
+            Err(error) => {
+                errors.push(format!(
+                    "{path}: file removed, but database cleanup failed: {error}"
+                ));
+            }
+        }
+    }
+
+    transaction.commit().map_err(|e| e.to_string())?;
+
+    Ok(DeleteVideosResult {
+        deleted_paths,
+        errors,
+    })
+}
+
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -600,7 +697,9 @@ pub fn run() {
             delete_playlist,
             load_playlist_videos,
             add_videos_to_playlist,
-            remove_video_from_playlist
+            remove_video_from_playlist,
+            reconcile_missing_videos,
+            delete_video_files
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

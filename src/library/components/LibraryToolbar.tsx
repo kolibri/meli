@@ -15,6 +15,8 @@ type LibraryToolbarProps = {
     onClearSelection: () => void
     playbackError: string
     metadataError: string
+    onDeleteSelected: () => void
+    isDeleting: boolean
 }
 
 export function LibraryToolbar({
@@ -33,7 +35,9 @@ export function LibraryToolbar({
                                    onSelectVisible,
                                    onClearSelection,
                                    playbackError,
-                                   metadataError
+                                   metadataError,
+                                   onDeleteSelected,
+                                   isDeleting,
                                }: LibraryToolbarProps) {
     return (
         <header className="library-toolbar">
@@ -121,6 +125,17 @@ export function LibraryToolbar({
                     Could not save rating or tags: {metadataError}
                 </p>
             )}
+
+            <button
+                type="button"
+                className="delete-selected-button"
+                onClick={onDeleteSelected}
+                disabled={selectedCount === 0 || isDeleting}
+            >
+                {isDeleting
+                    ? 'Deleting…'
+                    : `Delete files (${selectedCount})`}
+            </button>
 
             <input
                 className="library-search"

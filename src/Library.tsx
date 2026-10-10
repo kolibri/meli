@@ -17,6 +17,9 @@ export function Library() {
     const [ratingFilter, setRatingFilter] = useState<number | 'unrated' | null>(null)
     const [playbackError, setPlaybackError] = useState('')
     const [metadataError, setMetadataError] = useState('')
+    const [isDeleting, setIsDeleting] = useState(false)
+    const [deleteError, setDeleteError] = useState('')
+    const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false)
 
     const {
         storageDir,
@@ -36,6 +39,8 @@ export function Library() {
         setSearch,
         filteredVideos,
     } = useLibrary(storageDir, setStorageError, requestedFrames)
+
+    const [pendingDelete, setPendingDelete] = useState<typeof videoData>([])
 
     const {
         playlists,
@@ -77,7 +82,6 @@ export function Library() {
             count: tagCounts.get(key) ?? 0,
         }))
         .sort((a, b) => a.name.localeCompare(b.name))
-
 
     const videosForView =
         activePlaylistId === null
@@ -136,7 +140,6 @@ export function Library() {
     function handleSetSelection(ids: string[]) {
         setSelectedIds(new Set(ids))
     }
-
 
     function handleSelectVisible() {
         setSelectedIds((current) => {
@@ -232,6 +235,79 @@ export function Library() {
         }
     }
 
+    function handleDeleteSelected() {
+        if (isDeleting) return
+
+        const selected = videoData.filter((video) =>
+            selectedIds.has(video.id),
+        )
+
+        if (selected.length === 0) return
+
+        setDeleteError('')
+        setPendingDelete(selected)
+        setShowDeleteConfirmation(true)
+    }
+
+    function handleCancelDelete() {
+        if (isDeleting) return
+
+        setShowDeleteConfirmation(false)
+        setPendingDelete([])
+    }
+
+    async function confirmDeleteSelected() {
+        if (pendingDelete.length === 0 || isDeleting) return
+
+        const pathsToDelete = pendingDelete.map((video) => video.path)
+
+        setIsDeleting(true)
+        setDeleteError('')
+        setShowDeleteConfirmation(false)
+
+        try {
+            const result = await invoke<{
+                deletedPaths: string[]
+                errors: string[]
+            }>('delete_video_files', {
+                paths: pathsToDelete,
+            })
+
+            const deletedPaths = new Set(result.deletedPaths)
+
+            if (deletedPaths.size > 0) {
+                setVideoData((current) =>
+                    current.filter((video) => !deletedPaths.has(video.path)),
+                )
+
+                setSelectedIds((current) => {
+                    const deletedIds = new Set(
+                        pendingDelete
+                            .filter((video) => deletedPaths.has(video.path))
+                            .map((video) => video.id),
+                    )
+
+                    return new Set(
+                        [...current].filter((id) => !deletedIds.has(id)),
+                    )
+                })
+
+                for (const path of deletedPaths) {
+                    requestedFrames.current.delete(path)
+                }
+            }
+
+            if (result.errors.length > 0) {
+                setDeleteError(result.errors.join('\n'))
+            }
+        } catch (error) {
+            setDeleteError(String(error))
+        } finally {
+            setIsDeleting(false)
+            setPendingDelete([])
+        }
+    }
+
     return (
         <main className="library">
             <LibraryToolbar
@@ -255,6 +331,8 @@ export function Library() {
                 onClearSelection={handleClearSelection}
                 playbackError={playbackError}
                 metadataError={metadataError}
+                onDeleteSelected={handleDeleteSelected}
+                isDeleting={isDeleting}
             />
 
             <div className="library-content">
@@ -302,14 +380,13 @@ export function Library() {
                                     aria-pressed={activePlaylistId === playlist.id}
                                     onClick={() => setActivePlaylistId(playlist.id)}
                                 >
-                <span className="library-filter-label">
-                    {playlist.name}
-                </span>
+                                    <span className="library-filter-label">
+                                        {playlist.name}
+                                    </span>
                                     <span className="library-filter-count">
-                    {playlist.videoCount}
-                </span>
+                                        {playlist.videoCount}
+                                    </span>
                                 </button>
-
 
                                 <button
                                     type="button"
@@ -324,9 +401,9 @@ export function Library() {
                                         )
                                     }
                                 >
-
-                                    <span className="nf-icon" aria-hidden="true">{'\uf067'}</span>
-
+                                    <span className="nf-icon" aria-hidden="true">
+                                        {'\uf067'}
+                                    </span>
                                 </button>
 
                                 <button
@@ -335,13 +412,16 @@ export function Library() {
                                     title={`Rename ${playlist.name}`}
                                     aria-label={`Rename ${playlist.name}`}
                                     onClick={() => {
-                                        const name = window.prompt('Rename playlist', playlist.name)
+                                        const name = window.prompt(
+                                            'Rename playlist',
+                                            playlist.name,
+                                        )
                                         if (name) void renamePlaylist(playlist.id, name)
                                     }}
                                 >
-
-                                    <span className="nf-icon" aria-hidden="true">{'\uf040'}</span>
-
+                                    <span className="nf-icon" aria-hidden="true">
+                                        {'\uf040'}
+                                    </span>
                                 </button>
 
                                 <button
@@ -350,16 +430,19 @@ export function Library() {
                                     title={`Delete ${playlist.name}`}
                                     aria-label={`Delete ${playlist.name}`}
                                     onClick={() => {
-                                        if (window.confirm(`Delete playlist "${playlist.name}"?`)) {
+                                        if (
+                                            window.confirm(
+                                                `Delete playlist "${playlist.name}"?`,
+                                            )
+                                        ) {
                                             void deletePlaylist(playlist.id)
                                         }
                                     }}
                                 >
-
-                                    <span className="nf-icon" aria-hidden="true">{'\uf1f8'}</span>
-
+                                    <span className="nf-icon" aria-hidden="true">
+                                        {'\uf1f8'}
+                                    </span>
                                 </button>
-
                             </div>
                         ))}
                     </div>
@@ -367,6 +450,12 @@ export function Library() {
                     {playlistError && (
                         <p className="library-import-error" role="alert">
                             Playlist error: {playlistError}
+                        </p>
+                    )}
+
+                    {deleteError && (
+                        <p className="library-import-error" role="alert">
+                            Delete operation: {deleteError}
                         </p>
                     )}
 
@@ -383,8 +472,8 @@ export function Library() {
                         >
                             <span className="library-filter-label">All ratings</span>
                             <span className="library-filter-count">
-            {videoData.length}
-        </span>
+                                {videoData.length}
+                            </span>
                         </button>
 
                         {[5, 4, 3, 2, 1].map((minimum) => (
@@ -395,15 +484,17 @@ export function Library() {
                                 aria-pressed={ratingFilter === minimum}
                                 onClick={() => setRatingFilter(minimum)}
                             >
-            <span className="library-filter-label">
-                {'★'.repeat(minimum)}{'☆'.repeat(5 - minimum)}
-                <span> and up</span>
-            </span>
+                                <span className="library-filter-label">
+                                    {'★'.repeat(minimum)}
+                                    {'☆'.repeat(5 - minimum)}
+                                    <span> and up</span>
+                                </span>
                                 <span className="library-filter-count">
-                {videoData.filter(
-                    (video) => (Number(video.rating) || 0) >= minimum,
-                ).length}
-            </span>
+                                    {videoData.filter(
+                                        (video) =>
+                                            (Number(video.rating) || 0) >= minimum,
+                                    ).length}
+                                </span>
                             </button>
                         ))}
 
@@ -415,10 +506,10 @@ export function Library() {
                         >
                             <span className="library-filter-label">Not rated</span>
                             <span className="library-filter-count">
-            {videoData.filter(
-                (video) => (Number(video.rating) || 0) === 0,
-            ).length}
-        </span>
+                                {videoData.filter(
+                                    (video) => (Number(video.rating) || 0) === 0,
+                                ).length}
+                            </span>
                         </button>
                     </div>
 
@@ -426,8 +517,11 @@ export function Library() {
                         Tags
                     </h3>
 
-
-                    <div className="tag-match-toggle" role="group" aria-label="Tag matching mode">
+                    <div
+                        className="tag-match-toggle"
+                        role="group"
+                        aria-label="Tag matching mode"
+                    >
                         <button
                             type="button"
                             className={tagMatchMode === 'AND' ? 'active' : ''}
@@ -446,11 +540,8 @@ export function Library() {
                         </button>
                     </div>
 
-
                     {availableTags.length === 0 ? (
-                        <p className="library-sidebar-empty">
-                            No tags yet
-                        </p>
+                        <p className="library-sidebar-empty">No tags yet</p>
                     ) : (
                         <div className="library-tag-list">
                             {availableTags.map((tag) => (
@@ -484,30 +575,28 @@ export function Library() {
                 </aside>
 
                 <section className="library-results" aria-label="Video results">
-
-
                     {(selectedTags.length > 0 || ratingFilter !== null) && (
                         <div className="library-active-filter">
                             {selectedTags.length > 0 && (
                                 <span>
-                Tags ({tagMatchMode}):{' '}
+                                    Tags ({tagMatchMode}):{' '}
                                     <strong>
-                    {selectedTags
-                        .map((key) => tagNames.get(key) ?? key)
-                        .join(', ')}
-                </strong>
-            </span>
+                                        {selectedTags
+                                            .map((key) => tagNames.get(key) ?? key)
+                                            .join(', ')}
+                                    </strong>
+                                </span>
                             )}
 
                             {ratingFilter !== null && (
                                 <span>
-                Rating:{' '}
+                                    Rating:{' '}
                                     <strong>
-                    {ratingFilter === 'unrated'
-                        ? 'Not rated'
-                        : `${ratingFilter}+ stars`}
-                </strong>
-            </span>
+                                        {ratingFilter === 'unrated'
+                                            ? 'Not rated'
+                                            : `${ratingFilter}+ stars`}
+                                    </strong>
+                                </span>
                             )}
 
                             <button
@@ -522,10 +611,16 @@ export function Library() {
                             </button>
                         </div>
                     )}
+
                     {activePlaylistId !== null && (
                         <div className="playlist-actions">
                             <strong>
-                                {playlists.find((playlist) => playlist.id === activePlaylistId)?.name}
+                                {
+                                    playlists.find(
+                                        (playlist) =>
+                                            playlist.id === activePlaylistId,
+                                    )?.name
+                                }
                             </strong>
 
                             <button
@@ -539,16 +634,21 @@ export function Library() {
                             >
                                 Play playlist
                             </button>
+
                             <button
                                 type="button"
                                 disabled={
-                                    activePlaylistId === null ||
-                                    !playlistVideos.some((video) => selectedIds.has(video.id))
+                                    !playlistVideos.some((video) =>
+                                        selectedIds.has(video.id),
+                                    )
                                 }
-                                onClick={() => void handleRemoveSelectedFromPlaylist()}
+                                onClick={() =>
+                                    void handleRemoveSelectedFromPlaylist()
+                                }
                             >
                                 Remove selected from playlist
                             </button>
+
                             <button
                                 type="button"
                                 onClick={() => setActivePlaylistId(null)}
@@ -557,6 +657,7 @@ export function Library() {
                             </button>
                         </div>
                     )}
+
                     <VideoTable
                         videos={visibleVideos}
                         setVideoData={setVideoData}
@@ -571,6 +672,63 @@ export function Library() {
                     />
                 </section>
             </div>
+
+            {showDeleteConfirmation && (
+                <div className="delete-confirmation-backdrop">
+                    <section
+                        className="delete-confirmation-modal"
+                        role="alertdialog"
+                        aria-modal="true"
+                        aria-labelledby="delete-confirmation-title"
+                        aria-describedby="delete-confirmation-description"
+                    >
+                        <h2 id="delete-confirmation-title">
+                            Permanently delete files?
+                        </h2>
+
+                        <p id="delete-confirmation-description">
+                            You are about to permanently delete{' '}
+                            <strong>{pendingDelete.length}</strong>{' '}
+                            {pendingDelete.length === 1 ? 'file' : 'files'} from
+                            your filesystem. This cannot be undone.
+                        </p>
+
+                        <ul className="delete-confirmation-file-list">
+                            {pendingDelete.slice(0, 8).map((video) => (
+                                <li key={video.path}>{video.filename}</li>
+                            ))}
+                        </ul>
+
+                        {pendingDelete.length > 8 && (
+                            <p>
+                                And {pendingDelete.length - 8} more{' '}
+                                {pendingDelete.length - 8 === 1 ? 'file' : 'files'}.
+                            </p>
+                        )}
+
+                        <div className="delete-confirmation-actions">
+                            <button
+                                type="button"
+                                onClick={handleCancelDelete}
+                                disabled={isDeleting}
+                            >
+                                Cancel
+                            </button>
+
+                            <button
+                                type="button"
+                                className="delete-confirmation-danger"
+                                onClick={() => void confirmDeleteSelected()}
+                                disabled={isDeleting || pendingDelete.length === 0}
+                            >
+                                {isDeleting
+                                    ? 'Deleting…'
+                                    : 'Permanently delete'}
+                            </button>
+                        </div>
+                    </section>
+                </div>
+            )}
         </main>
     )
 }

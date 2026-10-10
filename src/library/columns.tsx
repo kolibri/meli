@@ -302,6 +302,20 @@ export function createColumns(
             },
         },
         {
+            id: 'play',
+            header: 'Playback',
+            size: 100,
+            enableSorting: false,
+            cell: (info) => (
+                <button
+                    type="button"
+                    onClick={() => onPlayVideo(info.row.original.path)}
+                >
+                    Play
+                </button>
+            ),
+        },
+        {
             accessorKey: 'filename',
             header: 'Filename',
             size: 260,
@@ -313,40 +327,6 @@ export function createColumns(
                     {info.getValue<string>()}
                 </span>
             ),
-        },
-        {
-            id: 'filmstrip',
-            header: 'Preview',
-            size: 390,
-            enableSorting: false,
-            cell: (info) => {
-                const frames = info.row.original.frames ?? []
-
-                return (
-                    <div className="filmstrip">
-                        {Array.from({ length: 10 }, (_, index) => {
-                            const frame = frames[index]
-
-                            return (
-                                <div className="filmstrip-frame" key={index}>
-                                    {frame ? (
-                                        <img
-                                            src={frame}
-                                            alt={`Frame ${index + 1}`}
-                                            loading="lazy"
-                                            draggable={false}
-                                        />
-                                    ) : (
-                                        <div className="frame-placeholder">
-                                            {index + 1}
-                                        </div>
-                                    )}
-                                </div>
-                            )
-                        })}
-                    </div>
-                )
-            },
         },
         {
             accessorKey: 'size',
@@ -386,20 +366,6 @@ export function createColumns(
                     video={info.row.original}
                     onRatingChange={onRatingChange}
                 />
-            ),
-        },
-        {
-            id: 'play',
-            header: 'Playback',
-            size: 100,
-            enableSorting: false,
-            cell: (info) => (
-                <button
-                    type="button"
-                    onClick={() => onPlayVideo(info.row.original.path)}
-                >
-                    Play
-                </button>
             ),
         },
     ]

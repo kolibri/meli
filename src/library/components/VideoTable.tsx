@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useTable } from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
 
@@ -44,18 +44,6 @@ export function VideoTable({
     const pointerYRef = useRef(0)
     const lastDragIndexRef = useRef<number | null>(null)
 
-    useEffect(() => {
-        function stopDragging() {
-            dragActiveRef.current = false
-        }
-
-        window.addEventListener('mouseup', stopDragging)
-
-        return () => {
-            window.removeEventListener('mouseup', stopDragging)
-        }
-    }, [])
-
     const columns = createColumns(
         selectedIds,
         onToggleSelection,
@@ -75,8 +63,8 @@ export function VideoTable({
     const virtualizer = useVirtualizer({
         count: rows.length,
         getScrollElement: () => scrollRef.current,
-        estimateSize: () => 100,
-        overscan: 8,
+        estimateSize: () => 250,
+        overscan: 5,
     })
 
     const virtualRows = virtualizer.getVirtualItems()
@@ -90,107 +78,134 @@ export function VideoTable({
         requestedFrames,
     )
 
-    function selectRange(
-        startIndex: number,
-        endIndex: number,
-        baseSelection: Set<string>,
-        additive: boolean,
-    ) {
-        const next = additive
-            ? new Set(baseSelection)
-            : new Set<string>()
+    const selectRange = useCallback(
+        (
+            startIndex: number,
+            endIndex: number,
+            baseSelection: Set<string>,
+            additive: boolean,
+        ) => {
+            const next = additive
+                ? new Set(baseSelection)
+                : new Set<string>()
 
-        const first = Math.min(startIndex, endIndex)
-        const last = Math.max(startIndex, endIndex)
+            const first = Math.min(startIndex, endIndex)
+            const last = Math.max(startIndex, endIndex)
 
-        for (let index = first; index <= last; index++) {
-            const row = rows[index]
-            if (row) next.add(row.id)
-        }
+            for (let index = first; index <= last; index++) {
+                const row = rows[index]
+                if (row) next.add(row.id)
+            }
 
-        onSetSelection([...next])
-    }
+            onSetSelection([...next])
+        },
+        [rows, onSetSelection],
+    )
 
-    function handleRowMouseDown(
-        event: React.MouseEvent<HTMLTableRowElement>,
-        index: number,
-        id: string,
-    ) {
-        if (event.button !== 0) return
-        pointerYRef.current = event.clientY
-        lastDragIndexRef.current = index
-        const target = event.target
-        if (
-            target instanceof Element &&
-            target.closest(
-                'button, input, textarea, select, a, [contenteditable="true"]',
-            )
-        ) {
-            return
-        }
+    const handleRowMouseDown = useCallback(
+        (
+            event: React.MouseEvent<HTMLTableRowElement>,
+            index: number,
+            id: string,
+        ) => {
+            if (event.button !== 0) return
 
-        event.preventDefault()
+            pointerYRef.current = event.clientY
+            lastDragIndexRef.current = index
 
-        const additive = event.ctrlKey || event.metaKey
-        const range = event.shiftKey
+            const target = event.target
 
-        const anchor =
-            range && anchorIndexRef.current !== null
-                ? anchorIndexRef.current
-                : index
+            if (
+                target instanceof Element &&
+                target.closest(
+                    'button, input, textarea, select, a, [contenteditable="true"]',
+                )
+            ) {
+                return
+            }
 
-        dragActiveRef.current = true
-        dragAnchorRef.current = anchor
-        dragAdditiveRef.current = additive
-        dragBaseSelectionRef.current = additive
-            ? new Set(selectedIds)
-            : new Set()
+            event.preventDefault()
 
-        if (range) {
-            if (anchorIndexRef.current === null) {
+            const additive = event.ctrlKey || event.metaKey
+            const range = event.shiftKey
+
+            const anchor =
+                range && anchorIndexRef.current !== null
+                    ? anchorIndexRef.current
+                    : index
+
+            dragActiveRef.current = true
+            dragAnchorRef.current = anchor
+            dragAdditiveRef.current = additive
+            dragBaseSelectionRef.current = additive
+                ? new Set(selectedIds)
+                : new Set()
+
+            if (range) {
+                if (anchorIndexRef.current === null) {
+                    anchorIndexRef.current = index
+                }
+
+                selectRange(
+                    anchor,
+                    index,
+                    dragBaseSelectionRef.current,
+                    additive,
+                )
+            } else if (additive) {
+                const next = new Set(selectedIds)
+
+                if (next.has(id)) {
+                    next.delete(id)
+                } else {
+                    next.add(id)
+                }
+
+                onSetSelection([...next])
+                anchorIndexRef.current = index
+            } else {
+                onSetSelection([id])
                 anchorIndexRef.current = index
             }
+        },
+        [onSetSelection, selectRange, selectedIds],
+    )
+
+    const handleRowMouseEnter = useCallback(
+        (index: number) => {
+            if (!dragActiveRef.current) return
+
+            const anchor = dragAnchorRef.current
+            if (anchor === null) return
+
+            lastDragIndexRef.current = index
 
             selectRange(
                 anchor,
                 index,
                 dragBaseSelectionRef.current,
-                additive,
+                dragAdditiveRef.current,
             )
-        } else if (additive) {
-            const next = new Set(selectedIds)
+        },
+        [selectRange],
+    )
 
-            if (next.has(id)) {
-                next.delete(id)
-            } else {
-                next.add(id)
-            }
-
-            onSetSelection([...next])
-            anchorIndexRef.current = index
-        } else {
-            onSetSelection([id])
-            anchorIndexRef.current = index
-        }
-    }
-
-    function handleRowMouseEnter(index: number) {
-        if (!dragActiveRef.current) return
-
-        const anchor = dragAnchorRef.current
-        if (anchor === null) return
-
-        selectRange(
-            anchor,
-            index,
-            dragBaseSelectionRef.current,
-            dragAdditiveRef.current,
-        )
-    }
-
-    function handlePointerMove(event: React.MouseEvent) {
+    function handlePointerMove(event: React.MouseEvent<HTMLDivElement>) {
         pointerYRef.current = event.clientY
     }
+
+    useEffect(() => {
+        function stopDragging() {
+            dragActiveRef.current = false
+            dragAnchorRef.current = null
+        }
+
+        window.addEventListener('mouseup', stopDragging)
+
+        return () => {
+            window.removeEventListener('mouseup', stopDragging)
+        }
+    }, [])
 
     useEffect(() => {
         let animationFrame = 0
@@ -199,6 +214,7 @@ export function VideoTable({
 
         function tick() {
             if (!dragActiveRef.current) {
+                animationFrame = requestAnimationFrame(tick)
                 return
             }
 
@@ -219,31 +235,31 @@ export function VideoTable({
                 }
 
                 if (speed !== 0) {
-                    const previousScrollTop = container.scrollTop
-
                     container.scrollTop += speed
 
-                    if (container.scrollTop !== previousScrollTop) {
-                        const targetOffset =
-                            container.scrollTop + pointerY - rect.top
+                    const targetOffset =
+                        container.scrollTop + pointerY - rect.top
 
-                        const virtualItems = virtualizer.getVirtualItems()
-
-                        const targetItem = virtualItems.find(
+                    const targetIndex = virtualizer
+                        .getVirtualItems()
+                        .find(
                             (item) =>
                                 targetOffset >= item.start &&
                                 targetOffset < item.end,
-                        )
+                        )?.index
 
-                        if (
-                            targetItem &&
-                            targetItem.index !== lastDragIndexRef.current
-                        ) {
-                            lastDragIndexRef.current = targetItem.index
+                    if (
+                        targetIndex !== undefined &&
+                        targetIndex !== lastDragIndexRef.current
+                    ) {
+                        lastDragIndexRef.current = targetIndex
 
+                        const anchor = dragAnchorRef.current
+
+                        if (anchor !== null) {
                             selectRange(
-                                dragAnchorRef.current!,
-                                targetItem.index,
+                                anchor,
+                                targetIndex,
                                 dragBaseSelectionRef.current,
                                 dragAdditiveRef.current,
                             )
@@ -260,7 +276,7 @@ export function VideoTable({
         return () => {
             cancelAnimationFrame(animationFrame)
         }
-    }, [rows, virtualizer])
+    }, [selectRange, virtualizer])
 
     const totalHeight = virtualizer.getTotalSize()
     const paddingTop =
@@ -271,7 +287,11 @@ export function VideoTable({
             : 0
 
     return (
-        <div className="library-scroll" ref={scrollRef} onMouseMove={handlePointerMove}>
+        <div
+            className="library-scroll"
+            ref={scrollRef}
+            onMouseMove={handlePointerMove}
+        >
             <table className="library-table">
                 <thead>
                     {table.getHeaderGroups().map((headerGroup) => (
@@ -287,29 +307,27 @@ export function VideoTable({
                                             minWidth: header.getSize(),
                                         }}
                                     >
-                                        {header.isPlaceholder ? null : (
-                                            header.column.getCanSort() ? (
-                                                <button
-                                                    type="button"
-                                                    className="sort-button"
-                                                    onClick={header.column.getToggleSortingHandler()}
-                                                >
-                                                    <table.FlexRender
-                                                        header={header}
-                                                    />
-                                                    <span aria-hidden="true">
-                                                        {sorted === 'asc'
-                                                            ? '↑'
-                                                            : sorted === 'desc'
-                                                              ? '↓'
-                                                              : '↕'}
-                                                    </span>
-                                                </button>
-                                            ) : (
+                                        {header.isPlaceholder ? null : header.column.getCanSort() ? (
+                                            <button
+                                                type="button"
+                                                className="sort-button"
+                                                onClick={header.column.getToggleSortingHandler()}
+                                            >
                                                 <table.FlexRender
                                                     header={header}
                                                 />
-                                            )
+                                                <span aria-hidden="true">
+                                                    {sorted === 'asc'
+                                                        ? '↑'
+                                                        : sorted === 'desc'
+                                                          ? '↓'
+                                                          : '↕'}
+                                                </span>
+                                            </button>
+                                        ) : (
+                                            <table.FlexRender
+                                                header={header}
+                                            />
                                         )}
                                     </th>
                                 )
@@ -344,7 +362,10 @@ export function VideoTable({
 
                             {virtualRows.map((virtualRow) => {
                                 const row = rows[virtualRow.index]
+                                const video = row.original
                                 const isSelected = selectedIds.has(row.id)
+                                const cells = row.getAllCells()
+                                const frames = video.frames ?? []
 
                                 return (
                                     <tr
@@ -369,13 +390,63 @@ export function VideoTable({
                                             )
                                         }
                                     >
-                                        {row.getAllCells().map((cell) => (
-                                            <td key={cell.id}>
-                                                <table.FlexRender
-                                                    cell={cell}
-                                                />
-                                            </td>
-                                        ))}
+                                        <td
+                                            colSpan={columns.length}
+                                            className="video-preview-cell"
+                                        >
+                                            <table className="video-entry-table">
+                                                <tbody>
+                                                    <tr className="video-metadata-row">
+                                                        {cells.map((cell) => (
+                                                            <td
+                                                                key={cell.id}
+                                                                style={{
+                                                                    width: cell.column.getSize(),
+                                                                }}
+                                                            >
+                                                                <table.FlexRender
+                                                                    cell={cell}
+                                                                />
+                                                            </td>
+                                                        ))}
+                                                    </tr>
+
+                                                    <tr className="video-filmstrip-row">
+                                                        <td colSpan={cells.length}>
+                                                            <div className="filmstrip">
+                                                                {Array.from(
+                                                                    { length: 10 },
+                                                                    (_, index) => {
+                                                                        const frame =
+                                                                            frames[index]
+
+                                                                        return (
+                                                                            <div
+                                                                                className="filmstrip-frame"
+                                                                                key={index}
+                                                                            >
+                                                                                {frame ? (
+                                                                                    <img
+                                                                                        src={frame}
+                                                                                        alt={`Frame ${index + 1} from ${video.filename}`}
+                                                                                        loading="lazy"
+                                                                                        draggable={false}
+                                                                                    />
+                                                                                ) : (
+                                                                                    <div className="frame-placeholder">
+                                                                                        {index + 1}
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        )
+                                                                    },
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </td>
                                     </tr>
                                 )
                             })}

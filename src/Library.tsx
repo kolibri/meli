@@ -12,7 +12,8 @@ import { VideoTable } from './library/components/VideoTable'
 export function Library() {
     const requestedFrames = useRef<Set<string>>(new Set())
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-    const [selectedTag, setSelectedTag] = useState<string | null>(null)
+    const [selectedTags, setSelectedTags] = useState<string[]>([])
+    const [tagMatchMode, setTagMatchMode] = useState<'AND' | 'OR'>('AND')
     const [ratingFilter, setRatingFilter] = useState<number | 'unrated' | null>(null)
     const [playbackError, setPlaybackError] = useState('')
     const [metadataError, setMetadataError] = useState('')
@@ -65,12 +66,17 @@ export function Library() {
         .sort((a, b) => a.name.localeCompare(b.name))
 
 
+
     const visibleVideos = filteredVideos.filter((video) => {
-        const matchesTag =
-            selectedTag === null ||
-            (video.tags ?? []).some(
-                (tag) => tag.trim().toLocaleLowerCase() === selectedTag,
-            )
+        const videoTags = (video.tags ?? []).map((tag) =>
+            tag.trim().toLocaleLowerCase(),
+        )
+
+        const matchesTags =
+            selectedTags.length === 0 ||
+            (tagMatchMode === 'AND'
+                ? selectedTags.every((tag) => videoTags.includes(tag))
+                : selectedTags.some((tag) => videoTags.includes(tag)))
 
         const rating = Number(video.rating) || 0
 
@@ -80,7 +86,7 @@ export function Library() {
                 ? rating === 0
                 : rating >= ratingFilter)
 
-        return matchesTag && matchesRating
+        return matchesTags && matchesRating
     })
 
     const selectedVideos = videoData.filter(
@@ -208,9 +214,9 @@ export function Library() {
 
                     <button
                         type="button"
-                        className={`library-filter-item${selectedTag === null ? ' active' : ''}`}
-                        aria-pressed={selectedTag === null}
-                        onClick={() => setSelectedTag(null)}
+                        className={`library-filter-item${selectedTags.length === 0 ? ' active' : ''}`}
+                        aria-pressed={selectedTags.length === 0}
+                        onClick={() => setSelectedTags([])}
                     >
                         <span className="library-filter-label">
                             <span aria-hidden="true">▤</span>
@@ -277,6 +283,27 @@ export function Library() {
                         Tags
                     </h3>
 
+
+                    <div className="tag-match-toggle" role="group" aria-label="Tag matching mode">
+                        <button
+                            type="button"
+                            className={tagMatchMode === 'AND' ? 'active' : ''}
+                            aria-pressed={tagMatchMode === 'AND'}
+                            onClick={() => setTagMatchMode('AND')}
+                        >
+                            AND
+                        </button>
+                        <button
+                            type="button"
+                            className={tagMatchMode === 'OR' ? 'active' : ''}
+                            aria-pressed={tagMatchMode === 'OR'}
+                            onClick={() => setTagMatchMode('OR')}
+                        >
+                            OR
+                        </button>
+                    </div>
+
+
                     {availableTags.length === 0 ? (
                         <p className="library-sidebar-empty">
                             No tags yet
@@ -287,12 +314,14 @@ export function Library() {
                                 <button
                                     key={tag.key}
                                     type="button"
-                                    className={`library-filter-item${selectedTag === tag.key ? ' active' : ''}`}
-                                    aria-pressed={selectedTag === tag.key}
                                     title={tag.name}
+                                    className={`library-filter-item${selectedTags.includes(tag.key) ? ' active' : ''}`}
+                                    aria-pressed={selectedTags.includes(tag.key)}
                                     onClick={() =>
-                                        setSelectedTag((current) =>
-                                            current === tag.key ? null : tag.key,
+                                        setSelectedTags((current) =>
+                                            current.includes(tag.key)
+                                                ? current.filter((key) => key !== tag.key)
+                                                : [...current, tag.key],
                                         )
                                     }
                                 >
@@ -313,11 +342,17 @@ export function Library() {
 
                 <section className="library-results" aria-label="Video results">
 
-                    {(selectedTag !== null || ratingFilter !== null) && (
+
+                    {(selectedTags.length > 0 || ratingFilter !== null) && (
                         <div className="library-active-filter">
-                            {selectedTag !== null && (
+                            {selectedTags.length > 0 && (
                                 <span>
-                Tag: <strong>{tagNames.get(selectedTag) ?? selectedTag}</strong>
+                Tags ({tagMatchMode}):{' '}
+                                    <strong>
+                    {selectedTags
+                        .map((key) => tagNames.get(key) ?? key)
+                        .join(', ')}
+                </strong>
             </span>
                             )}
 
@@ -335,7 +370,7 @@ export function Library() {
                             <button
                                 type="button"
                                 onClick={() => {
-                                    setSelectedTag(null)
+                                    setSelectedTags([])
                                     setRatingFilter(null)
                                 }}
                                 title="Clear all filters"

@@ -1,0 +1,87 @@
+
+type LibraryToolbarProps = {
+    videoCount: number
+    storageDir: string | null
+    storageLoading: boolean
+    storageError: string
+    onChooseStorage: () => void
+    isImporting: boolean
+    importError: string
+    onAddFolder: () => void
+    search: string
+    onSearchChange: (value: string) => void
+}
+
+export function LibraryToolbar({
+                                   videoCount,
+                                   storageDir,
+                                   storageLoading,
+                                   storageError,
+                                   onChooseStorage,
+                                   isImporting,
+                                   importError,
+                                   onAddFolder,
+                                   search,
+                                   onSearchChange,
+                               }: LibraryToolbarProps) {
+    return (
+        <header className="library-toolbar">
+            <div>
+                <h1 className="library-heading">Video Library</h1>
+                <div className="library-count">
+                    {videoCount} {videoCount === 1 ? 'video' : 'videos'}
+                </div>
+            </div>
+
+            <div className="library-storage">
+                <div className="library-storage-info">
+                    <strong>Storage</strong>
+                    <span title={storageDir ?? undefined}>
+                        {storageLoading
+                            ? 'Loading…'
+                            : storageDir ?? 'Not configured'}
+                    </span>
+                </div>
+
+                <button
+                    type="button"
+                    className="library-add-folder"
+                    onClick={onChooseStorage}
+                    disabled={storageLoading}
+                >
+                    {storageDir ? 'Change Storage' : 'Choose Storage'}
+                </button>
+            </div>
+
+            {storageError && (
+                <p className="library-import-error" role="alert">
+                    Storage error: {storageError}
+                </p>
+            )}
+
+            <button
+                type="button"
+                className="library-add-folder"
+                onClick={onAddFolder}
+                disabled={isImporting || storageLoading || !storageDir}
+            >
+                {isImporting ? 'Scanning…' : 'Add Folder'}
+            </button>
+
+            {importError && (
+                <p className="library-import-error" role="alert">
+                    Could not scan folder: {importError}
+                </p>
+            )}
+
+            <input
+                className="library-search"
+                type="search"
+                placeholder="Search filenames and tags…"
+                aria-label="Search video library"
+                value={search}
+                onChange={(event) => onSearchChange(event.target.value)}
+            />
+        </header>
+    )
+}

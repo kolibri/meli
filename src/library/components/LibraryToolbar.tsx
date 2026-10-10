@@ -1,4 +1,3 @@
-
 type LibraryToolbarProps = {
     videoCount: number
     storageDir: string | null
@@ -10,6 +9,11 @@ type LibraryToolbarProps = {
     onAddFolder: () => void
     search: string
     onSearchChange: (value: string) => void
+    selectedCount: number
+    onPlaySelected: () => void
+    onSelectVisible: () => void
+    onClearSelection: () => void
+    playbackError: string
 }
 
 export function LibraryToolbar({
@@ -23,6 +27,11 @@ export function LibraryToolbar({
                                    onAddFolder,
                                    search,
                                    onSearchChange,
+                                   selectedCount,
+                                   onPlaySelected,
+                                   onSelectVisible,
+                                   onClearSelection,
+                                   playbackError,
                                }: LibraryToolbarProps) {
     return (
         <header className="library-toolbar">
@@ -71,6 +80,37 @@ export function LibraryToolbar({
             {importError && (
                 <p className="library-import-error" role="alert">
                     Could not scan folder: {importError}
+                </p>
+            )}
+
+            <div className="library-playback-controls">
+                <button
+                    type="button"
+                    onClick={onPlaySelected}
+                    disabled={selectedCount === 0}
+                >
+                    Play selected ({selectedCount})
+                </button>
+
+                <button
+                    type="button"
+                    onClick={onSelectVisible}
+                >
+                    Select visible
+                </button>
+
+                <button
+                    type="button"
+                    onClick={onClearSelection}
+                    disabled={selectedCount === 0}
+                >
+                    Clear selection
+                </button>
+            </div>
+
+            {playbackError && (
+                <p className="library-import-error" role="alert">
+                    Could not open VLC: {playbackError}
                 </p>
             )}
 

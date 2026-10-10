@@ -1,9 +1,8 @@
-
 import { useRef } from 'react'
 import { useTable } from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
 
-import { columns, features } from '../columns'
+import { createColumns, features } from '../columns'
 import { useThumbnails } from '../hooks/useThumbnails'
 import type { Video } from '../types'
 
@@ -16,6 +15,9 @@ type VideoTableProps = {
     setVideoData: React.Dispatch<React.SetStateAction<Video[]>>
     storageDir: string | null
     requestedFrames: RequestedFrames
+    selectedIds: Set<string>
+    onToggleSelection: (id: string, checked: boolean) => void
+    onPlayVideo: (path: string) => void
 }
 
 export function VideoTable({
@@ -23,8 +25,17 @@ export function VideoTable({
                                setVideoData,
                                storageDir,
                                requestedFrames,
+                               selectedIds,
+                               onToggleSelection,
+                               onPlayVideo,
                            }: VideoTableProps) {
     const scrollRef = useRef<HTMLDivElement>(null)
+
+    const columns = createColumns(
+        selectedIds,
+        onToggleSelection,
+        onPlayVideo,
+    )
 
     const table = useTable({
         features,

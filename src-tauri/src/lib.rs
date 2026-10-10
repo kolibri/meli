@@ -4,6 +4,7 @@ mod scanner;
 mod settings;
 mod thumbnails;
 
+use std::process::Command;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use database::open_library_db;
 use rusqlite::params;
@@ -249,6 +250,29 @@ fn load_library(app: AppHandle) -> Result<Vec<VideoFile>, String> {
     Ok(videos)
 }
 
+#[tauri::command]
+fn open_videos_in_vlc(paths: Vec<String>) -> Result<(), String> {
+    if paths.is_empty() {
+        return Err("No videos selected".to_string());
+    }
+
+    for path in &paths {
+        if !PathBuf::from(path).is_file() {
+            return Err(format!("Video file not found: {path}"));
+        }
+    }
+
+    Command::new("vlc")
+        .args(&paths)
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| {
+            format!(
+                "Could not launch VLC. Make sure VLC is installed and available on PATH: {error}"
+            )
+        })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -260,7 +284,8 @@ pub fn run() {
             get_video_frames,
             get_storage_dir,
             set_storage_dir,
-            load_library
+            load_library,
+            open_videos_in_vlc
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

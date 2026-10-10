@@ -34,6 +34,13 @@ struct VideoFile {
     frames: Vec<String>,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Playlist {
+    id: i64,
+    name: String,
+}
+
 #[tauri::command]
 fn get_storage_dir(app: AppHandle) -> Result<Option<String>, String> {
     Ok(read_storage_dir(&app)?
@@ -316,6 +323,197 @@ fn update_video_tags(
 }
 
 #[tauri::command]
+fn load_playlists(app: AppHandle) -> Result<Vec<Playlist>, String> {
+    let connection = open_library_db(&app)?;
+    let mut statement = connection
+        .prepare("SELECT id, name FROM playlists ORDER BY name COLLATE NOCASE")
+        .map_err(|e| e.to_string())?;
+
+    let playlists = statement
+        .query_map([], |row| {
+            Ok(Playlist {
+                id: row.get(0)?,
+                name: row.get(1)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(playlists)
+}
+
+#[tauri::command]
+fn create_playlist(app: AppHandle, name: String) -> Result<Playlist, String> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err("Playlist name cannot be empty".to_string());
+    }
+
+    let connection = open_library_db(&app)?;
+    connection
+        .execute("INSERT INTO playlists (name) VALUES (?1)", params![name])
+        .map_err(|e| format!("Could not create playlist: {e}"))?;
+
+    Ok(Playlist {
+        id: connection.last_insert_rowid(),
+        name: name.to_string(),
+    })
+}
+
+#[tauri::command]
+fn rename_playlist(
+    app: AppHandle,
+    playlist_id: i64,
+    name: String,
+) -> Result<(), String> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err("Playlist name cannot be empty".to_string());
+    }
+
+    let connection = open_library_db(&app)?;
+    let updated = connection
+        .execute(
+            "UPDATE playlists SET name = ?1 WHERE id = ?2",
+            params![name, playlist_id],
+        )
+        .map_err(|e| format!("Could not rename playlist: {e}"))?;
+
+    if updated == 0 {
+        return Err(format!("Playlist not found: {playlist_id}"));
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+fn delete_playlist(app: AppHandle, playlist_id: i64) -> Result<(), String> {
+    let connection = open_library_db(&app)?;
+    let deleted = connection
+        .execute("DELETE FROM playlists WHERE id = ?1", params![playlist_id])
+        .map_err(|e| e.to_string())?;
+
+    if deleted == 0 {
+        return Err(format!("Playlist not found: {playlist_id}"));
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+fn load_playlist_videos(
+    app: AppHandle,
+    playlist_id: i64,
+) -> Result<Vec<VideoFile>, String> {
+    let connection = open_library_db(&app)?;
+    let mut statement = connection
+        .prepare(
+            "SELECT v.path, v.filename, v.size, v.duration,
+                    v.tags_json, v.rating
+             FROM playlist_items AS pi
+             JOIN videos AS v ON v.path = pi.video_path
+             WHERE pi.playlist_id = ?1
+             ORDER BY pi.position",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let videos = statement
+        .query_map(params![playlist_id], |row| {
+            let path: String = row.get(0)?;
+            let tags_json: String = row.get(4)?;
+            let rating: i64 = row.get(5)?;
+
+            Ok(VideoFile {
+                id: path.clone(),
+                path,
+                filename: row.get(1)?,
+                size: row.get(2)?,
+                duration: row.get(3)?,
+                tags: serde_json::from_str(&tags_json).unwrap_or_default(),
+                rating: rating.clamp(0, 5) as u8,
+                frames: Vec::new(),
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(videos)
+}
+
+#[tauri::command]
+fn add_videos_to_playlist(
+    app: AppHandle,
+    playlist_id: i64,
+    video_paths: Vec<String>,
+) -> Result<(), String> {
+    let mut connection = open_library_db(&app)?;
+    let transaction = connection.transaction().map_err(|e| e.to_string())?;
+
+    let playlist_exists: bool = transaction
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM playlists WHERE id = ?1)",
+            params![playlist_id],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+
+    if !playlist_exists {
+        return Err(format!("Playlist not found: {playlist_id}"));
+    }
+
+    for video_path in video_paths {
+        let video_exists: bool = transaction
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM videos WHERE path = ?1)",
+                params![video_path],
+                |row| row.get(0),
+            )
+            .map_err(|e| e.to_string())?;
+
+        if !video_exists {
+            return Err(format!("Video not found in library: {video_path}"));
+        }
+
+        transaction
+            .execute(
+                "INSERT OR IGNORE INTO playlist_items
+                    (playlist_id, video_path, position)
+                 SELECT ?1, ?2, COALESCE(MAX(position) + 1, 0)
+                 FROM playlist_items
+                 WHERE playlist_id = ?1",
+                params![playlist_id, video_path],
+            )
+            .map_err(|e| e.to_string())?;
+    }
+
+    transaction.commit().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn remove_video_from_playlist(
+    app: AppHandle,
+    playlist_id: i64,
+    video_path: String,
+) -> Result<(), String> {
+    let connection = open_library_db(&app)?;
+    let deleted = connection
+        .execute(
+            "DELETE FROM playlist_items
+             WHERE playlist_id = ?1 AND video_path = ?2",
+            params![playlist_id, video_path],
+        )
+        .map_err(|e| e.to_string())?;
+
+    if deleted == 0 {
+        return Err("Video was not found in that playlist".to_string());
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
 fn open_videos_in_vlc(paths: Vec<String>) -> Result<(), String> {
     if paths.is_empty() {
         return Err("No videos selected".to_string());
@@ -352,7 +550,14 @@ pub fn run() {
             load_library,
             open_videos_in_vlc,
             update_video_rating,
-            update_video_tags
+            update_video_tags,
+            load_playlists,
+            create_playlist,
+            rename_playlist,
+            delete_playlist,
+            load_playlist_videos,
+            add_videos_to_playlist,
+            remove_video_from_playlist
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

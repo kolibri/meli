@@ -9,3 +9,9 @@ export type Video = {
     rating: number
     frames: string[]
 }
+
+export type Playlist = {
+    id: number
+    name: string
+    videoCount: number
+}

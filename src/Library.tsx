@@ -1,13 +1,13 @@
-
 import './Library.css'
 
-import { useRef, useState } from 'react'
-import { invoke } from '@tauri-apps/api/core'
+import {useRef, useState} from 'react'
+import {invoke} from '@tauri-apps/api/core'
 
-import { useStorage } from './library/hooks/useStorage'
-import { useLibrary } from './library/hooks/useLibrary'
-import { LibraryToolbar } from './library/components/LibraryToolbar'
-import { VideoTable } from './library/components/VideoTable'
+import {useStorage} from './library/hooks/useStorage'
+import {useLibrary} from './library/hooks/useLibrary'
+import {LibraryToolbar} from './library/components/LibraryToolbar'
+import {VideoTable} from './library/components/VideoTable'
+import {usePlaylists} from './library/hooks/usePlaylists'
 
 export function Library() {
     const requestedFrames = useRef<Set<string>>(new Set())
@@ -36,6 +36,19 @@ export function Library() {
         setSearch,
         filteredVideos,
     } = useLibrary(storageDir, setStorageError, requestedFrames)
+
+    const {
+        playlists,
+        activePlaylistId,
+        setActivePlaylistId,
+        playlistVideos,
+        playlistError,
+        createPlaylist,
+        renamePlaylist,
+        deletePlaylist,
+        addVideosToPlaylist,
+        removeVideoFromPlaylist,
+    } = usePlaylists(storageDir)
 
     const tagCounts = new Map<string, number>()
     const tagNames = new Map<string, string>()
@@ -66,8 +79,21 @@ export function Library() {
         .sort((a, b) => a.name.localeCompare(b.name))
 
 
+    const videosForView =
+        activePlaylistId === null
+            ? filteredVideos
+            : playlistVideos.filter((video) => {
+                const query = search.trim().toLocaleLowerCase()
+                return (
+                    !query ||
+                    video.filename.toLocaleLowerCase().includes(query) ||
+                    video.tags.some((tag) =>
+                        tag.toLocaleLowerCase().includes(query),
+                    )
+                )
+            })
 
-    const visibleVideos = filteredVideos.filter((video) => {
+    const visibleVideos = videosForView.filter((video) => {
         const videoTags = (video.tags ?? []).map((tag) =>
             tag.trim().toLocaleLowerCase(),
         )
@@ -123,11 +149,29 @@ export function Library() {
         setSelectedIds(new Set())
     }
 
+    async function handleRemoveSelectedFromPlaylist() {
+        if (activePlaylistId === null) return
+
+        const paths = playlistVideos
+            .filter((video) => selectedIds.has(video.id))
+            .map((video) => video.path)
+
+        for (const path of paths) {
+            await removeVideoFromPlaylist(activePlaylistId, path)
+        }
+
+        setSelectedIds((current) => {
+            const next = new Set(current)
+            for (const path of paths) next.delete(path)
+            return next
+        })
+    }
+
     async function handlePlayVideos(paths: string[]) {
         setPlaybackError('')
 
         try {
-            await invoke<void>('open_videos_in_vlc', { paths })
+            await invoke<void>('open_videos_in_vlc', {paths})
         } catch (error) {
             setPlaybackError(String(error))
         }
@@ -147,7 +191,7 @@ export function Library() {
 
             setVideoData((current) =>
                 current.map((video) =>
-                    video.path === path ? { ...video, rating } : video,
+                    video.path === path ? {...video, rating} : video,
                 ),
             )
 
@@ -172,7 +216,7 @@ export function Library() {
 
             setVideoData((current) =>
                 current.map((video) =>
-                    video.path === path ? { ...video, tags } : video,
+                    video.path === path ? {...video, tags} : video,
                 ),
             )
 
@@ -226,6 +270,95 @@ export function Library() {
                             {filteredVideos.length}
                         </span>
                     </button>
+
+                    <h3 className="library-sidebar-heading library-tags-heading">
+                        Playlists
+                    </h3>
+
+                    <button
+                        type="button"
+                        className="library-filter-item"
+                        onClick={() => {
+                            const name = window.prompt('Playlist name')
+                            if (name) void createPlaylist(name)
+                        }}
+                    >
+                        <span className="library-filter-label">New playlist</span>
+                    </button>
+
+                    <div className="library-tag-list">
+                        {playlists.map((playlist) => (
+                            <div className="playlist-sidebar-item" key={playlist.id}>
+                                <button
+                                    type="button"
+                                    className={`library-filter-item${
+                                        activePlaylistId === playlist.id ? ' active' : ''
+                                    }`}
+                                    aria-pressed={activePlaylistId === playlist.id}
+                                    onClick={() => setActivePlaylistId(playlist.id)}
+                                >
+                <span className="library-filter-label">
+                    {playlist.name}
+                </span>
+                                    <span className="library-filter-count">
+                    {playlist.videoCount}
+                </span>
+                                </button>
+
+
+
+                                <button
+                                    type="button"
+                                    className="playlist-icon-button"
+                                    title={`Add selected videos to ${playlist.name}`}
+                                    aria-label={`Add selected videos to ${playlist.name}`}
+                                    disabled={selectedVideos.length === 0}
+                                    onClick={() =>
+                                        void addVideosToPlaylist(
+                                            playlist.id,
+                                            selectedVideos.map((video) => video.path),
+                                        )
+                                    }
+                                >
+                                    <span aria-hidden="true">+</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    className="playlist-icon-button"
+                                    title={`Rename ${playlist.name}`}
+                                    aria-label={`Rename ${playlist.name}`}
+                                    onClick={() => {
+                                        const name = window.prompt('Rename playlist', playlist.name)
+                                        if (name) void renamePlaylist(playlist.id, name)
+                                    }}
+                                >
+                                    <span aria-hidden="true">✎</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    className="playlist-icon-button playlist-delete-button"
+                                    title={`Delete ${playlist.name}`}
+                                    aria-label={`Delete ${playlist.name}`}
+                                    onClick={() => {
+                                        if (window.confirm(`Delete playlist "${playlist.name}"?`)) {
+                                            void deletePlaylist(playlist.id)
+                                        }
+                                    }}
+                                >
+                                    <span aria-hidden="true">×</span>
+                                </button>
+
+                            </div>
+                        ))}
+                    </div>
+
+                    {playlistError && (
+                        <p className="library-import-error" role="alert">
+                            Playlist error: {playlistError}
+                        </p>
+                    )}
 
                     <h3 className="library-sidebar-heading library-tags-heading">
                         Rating
@@ -379,7 +512,41 @@ export function Library() {
                             </button>
                         </div>
                     )}
+                    {activePlaylistId !== null && (
+                        <div className="playlist-actions">
+                            <strong>
+                                {playlists.find((playlist) => playlist.id === activePlaylistId)?.name}
+                            </strong>
 
+                            <button
+                                type="button"
+                                disabled={playlistVideos.length === 0}
+                                onClick={() =>
+                                    void handlePlayVideos(
+                                        playlistVideos.map((video) => video.path),
+                                    )
+                                }
+                            >
+                                Play playlist
+                            </button>
+                            <button
+                                type="button"
+                                disabled={
+                                    activePlaylistId === null ||
+                                    !playlistVideos.some((video) => selectedIds.has(video.id))
+                                }
+                                onClick={() => void handleRemoveSelectedFromPlaylist()}
+                            >
+                                Remove selected from playlist
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setActivePlaylistId(null)}
+                            >
+                                Back to all videos
+                            </button>
+                        </div>
+                    )}
                     <VideoTable
                         videos={visibleVideos}
                         setVideoData={setVideoData}

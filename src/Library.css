@@ -564,3 +564,92 @@
     border-color: var(--border-color, #555);
     font-weight: 600;
 }
+
+
+/* Compact playlist rows with inline icon actions */
+.library .playlist-sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    min-width: 0;
+    margin: 2px 0;
+}
+
+.library .playlist-sidebar-item > .library-filter-item {
+    flex: 1;
+    min-width: 0;
+    padding: 7px 8px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-color, inherit);
+    text-align: left;
+}
+
+.library .playlist-sidebar-item > .library-filter-item.active {
+    background: var(--hover-background, #383838);
+    border-color: var(--border-color, #555);
+}
+
+.library .playlist-sidebar-item .library-filter-label {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.library .playlist-sidebar-item .playlist-icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 28px;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--text-color, #d1d5db);
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1;
+}
+
+.library .playlist-sidebar-item .playlist-icon-button:hover:not(:disabled) {
+    background: var(--hover-background, #383838);
+    border-color: var(--border-color, #555);
+}
+
+.library .playlist-sidebar-item .playlist-delete-button:hover:not(:disabled) {
+    color: #ff8585;
+}
+
+.library .playlist-sidebar-item .playlist-icon-button:disabled {
+    background: transparent;
+    border-color: transparent;
+    opacity: 0.35;
+}
+
+.library .playlist-sidebar-item .playlist-icon-button:focus-visible {
+    outline: 2px solid #a5b4fc;
+    outline-offset: 1px;
+}
+
+.library .playlist-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-color, #444);
+}
+
+.library .playlist-actions strong {
+    margin-right: auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.library .playlist-actions button {
+    padding: 6px 10px;
+}

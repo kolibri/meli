@@ -10,6 +10,7 @@ import {
 } from '@tanstack/react-table'
 
 import type { Video } from './types'
+import { RatingEditor } from './components/RatingEditor'
 import { formatDuration, formatSize } from './formatters'
 
 export const features = tableFeatures({
@@ -22,48 +23,6 @@ type MetadataCallbacks = {
     onRatingChange: (path: string, rating: number) => Promise<boolean>
     onTagsChange: (path: string, tags: string[]) => Promise<boolean>
 }
-
-function RatingEditor({
-                          video,
-                          onRatingChange,
-                      }: {
-    video: Video
-    onRatingChange: MetadataCallbacks['onRatingChange']
-}) {
-    const rating = Math.max(0, Math.min(5, Number(video.rating) || 0))
-
-    return (
-        <div className="rating" aria-label={`Rating ${rating} out of 5`}>
-            {Array.from({ length: 5 }, (_, index) => {
-                const star = index + 1
-                const active = star <= rating
-
-                return (
-                    <button
-                        key={star}
-                        type="button"
-                        className={`rating-star${active ? ' active' : ''}`}
-                        aria-label={
-                            rating === star
-                                ? `Clear rating of ${star}`
-                                : `Set rating to ${star}`
-                        }
-                        aria-pressed={rating === star}
-                        onClick={() =>
-                            void onRatingChange(
-                                video.path,
-                                rating === star ? 0 : star,
-                            )
-                        }
-                    >
-                        {active ? '★' : '☆'}
-                    </button>
-                )
-            })}
-        </div>
-    )
-}
-
 
 function TagsEditor({
                         video,

@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { useTable } from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
 
@@ -17,23 +17,44 @@ type VideoTableProps = {
     requestedFrames: RequestedFrames
     selectedIds: Set<string>
     onToggleSelection: (id: string, checked: boolean) => void
+    onSetSelection: (ids: string[]) => void
     onPlayVideo: (path: string) => void
     onRatingChange: (path: string, rating: number) => Promise<boolean>
     onTagsChange: (path: string, tags: string[]) => Promise<boolean>
 }
 
 export function VideoTable({
-                               videos,
-                               setVideoData,
-                               storageDir,
-                               requestedFrames,
-                               selectedIds,
-                               onToggleSelection,
-                               onPlayVideo,
-                               onRatingChange,
-                               onTagsChange,
-                           }: VideoTableProps) {
+    videos,
+    setVideoData,
+    storageDir,
+    requestedFrames,
+    selectedIds,
+    onToggleSelection,
+    onSetSelection,
+    onPlayVideo,
+    onRatingChange,
+    onTagsChange,
+}: VideoTableProps) {
     const scrollRef = useRef<HTMLDivElement>(null)
+    const anchorIndexRef = useRef<number | null>(null)
+    const dragAnchorRef = useRef<number | null>(null)
+    const dragBaseSelectionRef = useRef<Set<string>>(new Set())
+    const dragAdditiveRef = useRef(false)
+    const dragActiveRef = useRef(false)
+    const pointerYRef = useRef(0)
+    const lastDragIndexRef = useRef<number | null>(null)
+
+    useEffect(() => {
+        function stopDragging() {
+            dragActiveRef.current = false
+        }
+
+        window.addEventListener('mouseup', stopDragging)
+
+        return () => {
+            window.removeEventListener('mouseup', stopDragging)
+        }
+    }, [])
 
     const columns = createColumns(
         selectedIds,
@@ -41,6 +62,7 @@ export function VideoTable({
         onPlayVideo,
         { onRatingChange, onTagsChange },
     )
+
     const table = useTable({
         features,
         columns,
@@ -68,6 +90,178 @@ export function VideoTable({
         requestedFrames,
     )
 
+    function selectRange(
+        startIndex: number,
+        endIndex: number,
+        baseSelection: Set<string>,
+        additive: boolean,
+    ) {
+        const next = additive
+            ? new Set(baseSelection)
+            : new Set<string>()
+
+        const first = Math.min(startIndex, endIndex)
+        const last = Math.max(startIndex, endIndex)
+
+        for (let index = first; index <= last; index++) {
+            const row = rows[index]
+            if (row) next.add(row.id)
+        }
+
+        onSetSelection([...next])
+    }
+
+    function handleRowMouseDown(
+        event: React.MouseEvent<HTMLTableRowElement>,
+        index: number,
+        id: string,
+    ) {
+        if (event.button !== 0) return
+        pointerYRef.current = event.clientY
+        lastDragIndexRef.current = index
+        const target = event.target
+        if (
+            target instanceof Element &&
+            target.closest(
+                'button, input, textarea, select, a, [contenteditable="true"]',
+            )
+        ) {
+            return
+        }
+
+        event.preventDefault()
+
+        const additive = event.ctrlKey || event.metaKey
+        const range = event.shiftKey
+
+        const anchor =
+            range && anchorIndexRef.current !== null
+                ? anchorIndexRef.current
+                : index
+
+        dragActiveRef.current = true
+        dragAnchorRef.current = anchor
+        dragAdditiveRef.current = additive
+        dragBaseSelectionRef.current = additive
+            ? new Set(selectedIds)
+            : new Set()
+
+        if (range) {
+            if (anchorIndexRef.current === null) {
+                anchorIndexRef.current = index
+            }
+
+            selectRange(
+                anchor,
+                index,
+                dragBaseSelectionRef.current,
+                additive,
+            )
+        } else if (additive) {
+            const next = new Set(selectedIds)
+
+            if (next.has(id)) {
+                next.delete(id)
+            } else {
+                next.add(id)
+            }
+
+            onSetSelection([...next])
+            anchorIndexRef.current = index
+        } else {
+            onSetSelection([id])
+            anchorIndexRef.current = index
+        }
+    }
+
+    function handleRowMouseEnter(index: number) {
+        if (!dragActiveRef.current) return
+
+        const anchor = dragAnchorRef.current
+        if (anchor === null) return
+
+        selectRange(
+            anchor,
+            index,
+            dragBaseSelectionRef.current,
+            dragAdditiveRef.current,
+        )
+    }
+
+    function handlePointerMove(event: React.MouseEvent) {
+        pointerYRef.current = event.clientY
+    }
+
+    useEffect(() => {
+        let animationFrame = 0
+        const edgeSize = 56
+        const maxSpeed = 18
+
+        function tick() {
+            if (!dragActiveRef.current) {
+                return
+            }
+
+            const container = scrollRef.current
+
+            if (container) {
+                const rect = container.getBoundingClientRect()
+                const pointerY = pointerYRef.current
+
+                let speed = 0
+
+                if (pointerY < rect.top + edgeSize) {
+                    const distance = Math.max(0, pointerY - rect.top)
+                    speed = -maxSpeed * (1 - distance / edgeSize)
+                } else if (pointerY > rect.bottom - edgeSize) {
+                    const distance = Math.max(0, rect.bottom - pointerY)
+                    speed = maxSpeed * (1 - distance / edgeSize)
+                }
+
+                if (speed !== 0) {
+                    const previousScrollTop = container.scrollTop
+
+                    container.scrollTop += speed
+
+                    if (container.scrollTop !== previousScrollTop) {
+                        const targetOffset =
+                            container.scrollTop + pointerY - rect.top
+
+                        const virtualItems = virtualizer.getVirtualItems()
+
+                        const targetItem = virtualItems.find(
+                            (item) =>
+                                targetOffset >= item.start &&
+                                targetOffset < item.end,
+                        )
+
+                        if (
+                            targetItem &&
+                            targetItem.index !== lastDragIndexRef.current
+                        ) {
+                            lastDragIndexRef.current = targetItem.index
+
+                            selectRange(
+                                dragAnchorRef.current!,
+                                targetItem.index,
+                                dragBaseSelectionRef.current,
+                                dragAdditiveRef.current,
+                            )
+                        }
+                    }
+                }
+            }
+
+            animationFrame = requestAnimationFrame(tick)
+        }
+
+        animationFrame = requestAnimationFrame(tick)
+
+        return () => {
+            cancelAnimationFrame(animationFrame)
+        }
+    }, [rows, virtualizer])
+
     const totalHeight = virtualizer.getTotalSize()
     const paddingTop =
         virtualRows.length > 0 ? virtualRows[0].start : 0
@@ -77,110 +271,129 @@ export function VideoTable({
             : 0
 
     return (
-        <div className="library-scroll" ref={scrollRef}>
+        <div className="library-scroll" ref={scrollRef} onMouseMove={handlePointerMove}>
             <table className="library-table">
                 <thead>
-                {table.getHeaderGroups().map((headerGroup) => (
-                    <tr key={headerGroup.id}>
-                        {headerGroup.headers.map((header) => {
-                            const sorted = header.column.getIsSorted()
+                    {table.getHeaderGroups().map((headerGroup) => (
+                        <tr key={headerGroup.id}>
+                            {headerGroup.headers.map((header) => {
+                                const sorted = header.column.getIsSorted()
 
-                            return (
-                                <th
-                                    key={header.id}
-                                    style={{
-                                        width: header.getSize(),
-                                        minWidth: header.getSize(),
-                                    }}
-                                >
-                                    {header.isPlaceholder ? null : (
-                                        header.column.getCanSort() ? (
-                                            <button
-                                                type="button"
-                                                className="sort-button"
-                                                onClick={header.column.getToggleSortingHandler()}
-                                            >
-                                                <table.FlexRender
-                                                    header={header}
-                                                />
-                                                <span aria-hidden="true">
+                                return (
+                                    <th
+                                        key={header.id}
+                                        style={{
+                                            width: header.getSize(),
+                                            minWidth: header.getSize(),
+                                        }}
+                                    >
+                                        {header.isPlaceholder ? null : (
+                                            header.column.getCanSort() ? (
+                                                <button
+                                                    type="button"
+                                                    className="sort-button"
+                                                    onClick={header.column.getToggleSortingHandler()}
+                                                >
+                                                    <table.FlexRender
+                                                        header={header}
+                                                    />
+                                                    <span aria-hidden="true">
                                                         {sorted === 'asc'
                                                             ? '↑'
                                                             : sorted === 'desc'
-                                                                ? '↓'
-                                                                : '↕'}
+                                                              ? '↓'
+                                                              : '↕'}
                                                     </span>
-                                            </button>
-                                        ) : (
-                                            <table.FlexRender
-                                                header={header}
-                                            />
-                                        )
-                                    )}
-                                </th>
-                            )
-                        })}
-                    </tr>
-                ))}
+                                                </button>
+                                            ) : (
+                                                <table.FlexRender
+                                                    header={header}
+                                                />
+                                            )
+                                        )}
+                                    </th>
+                                )
+                            })}
+                        </tr>
+                    ))}
                 </thead>
 
                 <tbody>
-                {rows.length === 0 ? (
-                    <tr>
-                        <td colSpan={columns.length}>
-                            <div className="library-empty">
-                                No videos match your search.
-                            </div>
-                        </td>
-                    </tr>
-                ) : (
-                    <>
-                        {paddingTop > 0 && (
-                            <tr aria-hidden="true">
-                                <td
-                                    colSpan={columns.length}
-                                    style={{
-                                        height: paddingTop,
-                                        padding: 0,
-                                        border: 0,
-                                    }}
-                                />
-                            </tr>
-                        )}
-
-                        {virtualRows.map((virtualRow) => {
-                            const row = rows[virtualRow.index]
-
-                            return (
-                                <tr
-                                    key={row.id}
-                                    style={{ height: virtualRow.size }}
-                                >
-                                    {row.getAllCells().map((cell) => (
-                                        <td key={cell.id}>
-                                            <table.FlexRender
-                                                cell={cell}
-                                            />
-                                        </td>
-                                    ))}
+                    {rows.length === 0 ? (
+                        <tr>
+                            <td colSpan={columns.length}>
+                                <div className="library-empty">
+                                    No videos match your search.
+                                </div>
+                            </td>
+                        </tr>
+                    ) : (
+                        <>
+                            {paddingTop > 0 && (
+                                <tr aria-hidden="true">
+                                    <td
+                                        colSpan={columns.length}
+                                        style={{
+                                            height: paddingTop,
+                                            padding: 0,
+                                            border: 0,
+                                        }}
+                                    />
                                 </tr>
-                            )
-                        })}
+                            )}
 
-                        {paddingBottom > 0 && (
-                            <tr aria-hidden="true">
-                                <td
-                                    colSpan={columns.length}
-                                    style={{
-                                        height: paddingBottom,
-                                        padding: 0,
-                                        border: 0,
-                                    }}
-                                />
-                            </tr>
-                        )}
-                    </>
-                )}
+                            {virtualRows.map((virtualRow) => {
+                                const row = rows[virtualRow.index]
+                                const isSelected = selectedIds.has(row.id)
+
+                                return (
+                                    <tr
+                                        key={row.id}
+                                        className={
+                                            isSelected
+                                                ? 'video-row-selected'
+                                                : undefined
+                                        }
+                                        aria-selected={isSelected}
+                                        style={{ height: virtualRow.size }}
+                                        onMouseDown={(event) =>
+                                            handleRowMouseDown(
+                                                event,
+                                                virtualRow.index,
+                                                row.id,
+                                            )
+                                        }
+                                        onMouseEnter={() =>
+                                            handleRowMouseEnter(
+                                                virtualRow.index,
+                                            )
+                                        }
+                                    >
+                                        {row.getAllCells().map((cell) => (
+                                            <td key={cell.id}>
+                                                <table.FlexRender
+                                                    cell={cell}
+                                                />
+                                            </td>
+                                        ))}
+                                    </tr>
+                                )
+                            })}
+
+                            {paddingBottom > 0 && (
+                                <tr aria-hidden="true">
+                                    <td
+                                        colSpan={columns.length}
+                                        style={{
+                                            height: paddingBottom,
+                                            padding: 0,
+                                            border: 0,
+                                        }}
+                                    />
+                                </tr>
+                            )}
+                        </>
+                    )}
                 </tbody>
             </table>
         </div>

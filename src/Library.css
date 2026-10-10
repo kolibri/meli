@@ -662,3 +662,7 @@
     font-weight: normal;
     line-height: 1;
 }
+
+.library-table tbody tr.video-row-selected {
+   background-color: rgba(70, 130, 220, 0.22);
+}

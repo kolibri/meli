@@ -133,6 +133,11 @@ export function Library() {
         })
     }
 
+    function handleSetSelection(ids: string[]) {
+        setSelectedIds(new Set(ids))
+    }
+
+
     function handleSelectVisible() {
         setSelectedIds((current) => {
             const next = new Set(current)
@@ -304,7 +309,6 @@ export function Library() {
                     {playlist.videoCount}
                 </span>
                                 </button>
-
 
 
                                 <button
@@ -560,6 +564,7 @@ export function Library() {
                         requestedFrames={requestedFrames}
                         selectedIds={selectedIds}
                         onToggleSelection={handleToggleSelection}
+                        onSetSelection={handleSetSelection}
                         onPlayVideo={(path) => handlePlayVideos([path])}
                         onRatingChange={handleRatingChange}
                         onTagsChange={handleTagsChange}

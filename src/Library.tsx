@@ -13,6 +13,7 @@ export function Library() {
     const requestedFrames = useRef<Set<string>>(new Set())
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
     const [playbackError, setPlaybackError] = useState('')
+    const [metadataError, setMetadataError] = useState('')
 
     const {
         storageDir,
@@ -77,6 +78,56 @@ export function Library() {
         }
     }
 
+    async function handleRatingChange(
+        path: string,
+        rating: number,
+    ): Promise<boolean> {
+        setMetadataError('')
+
+        try {
+            await invoke<void>('update_video_rating', {
+                videoPath: path,
+                rating,
+            })
+
+            setVideoData((current) =>
+                current.map((video) =>
+                    video.path === path ? { ...video, rating } : video,
+                ),
+            )
+
+            return true
+        } catch (error) {
+            setMetadataError(String(error))
+            return false
+        }
+    }
+
+    async function handleTagsChange(
+        path: string,
+        tags: string[],
+    ): Promise<boolean> {
+        setMetadataError('')
+
+        try {
+            await invoke<void>('update_video_tags', {
+                videoPath: path,
+                tags,
+            })
+
+            setVideoData((current) =>
+                current.map((video) =>
+                    video.path === path ? { ...video, tags } : video,
+                ),
+            )
+
+            return true
+        } catch (error) {
+            setMetadataError(String(error))
+            return false
+        }
+    }
+
     return (
         <main className="library">
             <LibraryToolbar
@@ -99,6 +150,7 @@ export function Library() {
                 onSelectVisible={handleSelectVisible}
                 onClearSelection={handleClearSelection}
                 playbackError={playbackError}
+                metadataError={metadataError}
             />
 
             <VideoTable
@@ -109,6 +161,8 @@ export function Library() {
                 selectedIds={selectedIds}
                 onToggleSelection={handleToggleSelection}
                 onPlayVideo={(path) => handlePlayVideos([path])}
+                onRatingChange={handleRatingChange}
+                onTagsChange={handleTagsChange}
             />
         </main>
     )

@@ -18,6 +18,8 @@ type VideoTableProps = {
     selectedIds: Set<string>
     onToggleSelection: (id: string, checked: boolean) => void
     onPlayVideo: (path: string) => void
+    onRatingChange: (path: string, rating: number) => Promise<boolean>
+    onTagsChange: (path: string, tags: string[]) => Promise<boolean>
 }
 
 export function VideoTable({
@@ -28,6 +30,8 @@ export function VideoTable({
                                selectedIds,
                                onToggleSelection,
                                onPlayVideo,
+                               onRatingChange,
+                               onTagsChange,
                            }: VideoTableProps) {
     const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -35,8 +39,8 @@ export function VideoTable({
         selectedIds,
         onToggleSelection,
         onPlayVideo,
+        { onRatingChange, onTagsChange },
     )
-
     const table = useTable({
         features,
         columns,

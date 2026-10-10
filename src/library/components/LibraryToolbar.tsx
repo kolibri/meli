@@ -14,6 +14,7 @@ type LibraryToolbarProps = {
     onSelectVisible: () => void
     onClearSelection: () => void
     playbackError: string
+    metadataError: string
 }
 
 export function LibraryToolbar({
@@ -32,6 +33,7 @@ export function LibraryToolbar({
                                    onSelectVisible,
                                    onClearSelection,
                                    playbackError,
+                                   metadataError
                                }: LibraryToolbarProps) {
     return (
         <header className="library-toolbar">
@@ -111,6 +113,12 @@ export function LibraryToolbar({
             {playbackError && (
                 <p className="library-import-error" role="alert">
                     Could not open VLC: {playbackError}
+                </p>
+            )}
+
+            {metadataError && (
+                <p className="library-import-error" role="alert">
+                    Could not save rating or tags: {metadataError}
                 </p>
             )}
 

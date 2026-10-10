@@ -251,6 +251,71 @@ fn load_library(app: AppHandle) -> Result<Vec<VideoFile>, String> {
 }
 
 #[tauri::command]
+fn update_video_rating(
+    app: AppHandle,
+    video_path: String,
+    rating: u8,
+) -> Result<(), String> {
+    if rating > 5 {
+        return Err("Rating must be between 0 and 5".to_string());
+    }
+
+    let connection = open_library_db(&app)?;
+
+    let updated = connection
+        .execute(
+            "UPDATE videos SET rating = ?1 WHERE path = ?2",
+            params![rating, video_path],
+        )
+        .map_err(|e| e.to_string())?;
+
+    if updated == 0 {
+        return Err(format!("Video not found in library: {video_path}"));
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+fn update_video_tags(
+    app: AppHandle,
+    video_path: String,
+    tags: Vec<String>,
+) -> Result<(), String> {
+    let mut normalized_tags = Vec::new();
+
+    for tag in tags {
+        let tag = tag.trim();
+
+        if !tag.is_empty()
+            && !normalized_tags.iter().any(|existing: &String| {
+                existing.eq_ignore_ascii_case(tag)
+            })
+        {
+            normalized_tags.push(tag.to_string());
+        }
+    }
+
+    let tags_json =
+        serde_json::to_string(&normalized_tags).map_err(|e| e.to_string())?;
+
+    let connection = open_library_db(&app)?;
+
+    let updated = connection
+        .execute(
+            "UPDATE videos SET tags_json = ?1 WHERE path = ?2",
+            params![tags_json, video_path],
+        )
+        .map_err(|e| e.to_string())?;
+
+    if updated == 0 {
+        return Err(format!("Video not found in library: {video_path}"));
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
 fn open_videos_in_vlc(paths: Vec<String>) -> Result<(), String> {
     if paths.is_empty() {
         return Err("No videos selected".to_string());
@@ -285,7 +350,9 @@ pub fn run() {
             get_storage_dir,
             set_storage_dir,
             load_library,
-            open_videos_in_vlc
+            open_videos_in_vlc,
+            update_video_rating,
+            update_video_tags
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

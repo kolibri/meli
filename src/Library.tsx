@@ -11,6 +11,11 @@ import {usePlaylists} from './library/hooks/usePlaylists'
 import {LibraryBulkTagBar} from './library/components/LibraryBulkTagBar'
 import {LibraryDeleteConfirmation} from './library/components/LibraryDeleteConfirmation'
 import {LibraryActiveFilters} from './library/components/LibraryActiveFilters'
+import {
+    getAvailableTags,
+    getVideosForView,
+    getVisibleVideos,
+} from './library/selectors'
 
 export function Library() {
     const requestedFrames = useRef<Set<string>>(new Set())
@@ -61,80 +66,22 @@ export function Library() {
         removeVideoFromPlaylist,
     } = usePlaylists(storageDir)
 
-    const tagCounts = new Map<string, number>()
-    const tagNames = new Map<string, string>()
+    const {availableTags, tagNames} = getAvailableTags(videoData)
 
-    for (const video of videoData) {
-        const tagsOnVideo = new Set<string>()
+    const videosForView = getVideosForView({
+        activePlaylistId,
+        filteredVideos,
+        playlistVideos,
+        videoData,
+        search,
+    })
 
-        for (const rawTag of video.tags ?? []) {
-            const tag = rawTag.trim()
-            if (!tag) continue
-
-            const key = tag.toLocaleLowerCase()
-
-            if (!tagsOnVideo.has(key)) {
-                tagsOnVideo.add(key)
-                tagNames.set(key, tagNames.get(key) ?? tag)
-                tagCounts.set(key, (tagCounts.get(key) ?? 0) + 1)
-            }
-        }
-    }
-
-    const availableTags = [...tagNames.entries()]
-        .map(([key, name]) => ({
-            key,
-            name,
-            count: tagCounts.get(key) ?? 0,
-        }))
-        .sort((a, b) => a.name.localeCompare(b.name))
-
-
-    const videosForView =
-        activePlaylistId === null
-            ? filteredVideos
-            : playlistVideos
-                .map(
-                    (playlistVideo) =>
-                        videoData.find(
-                            (video) => video.path === playlistVideo.path,
-                        ) ?? playlistVideo,
-                )
-                .filter((video) => {
-                    const query = search.trim().toLocaleLowerCase()
-
-                    return (
-                        !query ||
-                        video.filename.toLocaleLowerCase().includes(query) ||
-                        (video.tags ?? []).some((tag) =>
-                            tag.toLocaleLowerCase().includes(query),
-                        )
-                    )
-                })
-
-    const visibleVideos = videosForView.filter((video) => {
-        const videoTags = (video.tags ?? []).map((tag) =>
-            tag.trim().toLocaleLowerCase(),
-        )
-
-        const matchesUntagged =
-            !untaggedOnly || !videoTags.some((tag) => tag.length > 0)
-
-        const matchesTags =
-            selectedTags.length === 0 ||
-            (tagMatchMode === 'AND'
-                ? selectedTags.every((tag) => videoTags.includes(tag))
-                : selectedTags.some((tag) => videoTags.includes(tag)))
-
-        const rating = Number(video.rating) || 0
-
-        const matchesRating =
-            ratingFilter === null ||
-            (ratingFilter === 'unrated'
-                ? rating === 0
-                : rating >= ratingFilter)
-
-        return matchesUntagged && matchesTags && matchesRating
+    const visibleVideos = getVisibleVideos({
+        videos: videosForView,
+        selectedTags,
+        tagMatchMode,
+        untaggedOnly,
+        ratingFilter,
     })
 
     const selectedVideos = videoData.filter(

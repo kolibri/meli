@@ -2,11 +2,11 @@ import {useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 
 import {
+    type ColumnDef,
     columnSizingFeature,
     createSortedRowModel,
     rowSortingFeature,
     tableFeatures,
-    type ColumnDef,
 } from '@tanstack/react-table'
 
 import type {Video} from './types'

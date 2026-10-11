@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useTable } from '@tanstack/react-table'
-import { useVirtualizer } from '@tanstack/react-virtual'
-import { invoke } from '@tauri-apps/api/core'
+import {useCallback, useEffect, useRef, useState} from 'react'
+import {useTable} from '@tanstack/react-table'
+import {useVirtualizer} from '@tanstack/react-virtual'
+import {invoke} from '@tauri-apps/api/core'
 
-import { createColumns, features } from '../columns'
-import { useThumbnails } from '../hooks/useThumbnails'
-import type { Video } from '../types'
+import {createColumns, features} from '../columns'
+import {useThumbnails} from '../hooks/useThumbnails'
+import type {Video} from '../types'
 
 type RequestedFrames = {
     current: Set<string>
@@ -25,17 +25,17 @@ type VideoTableProps = {
 }
 
 export function VideoTable({
-    videos,
-    setVideoData,
-    storageDir,
-    requestedFrames,
-    selectedIds,
-    onToggleSelection,
-    onSetSelection,
-    onPlayVideo,
-    onRatingChange,
-    onTagsChange,
-}: VideoTableProps) {
+                               videos,
+                               setVideoData,
+                               storageDir,
+                               requestedFrames,
+                               selectedIds,
+                               onToggleSelection,
+                               onSetSelection,
+                               onPlayVideo,
+                               onRatingChange,
+                               onTagsChange,
+                           }: VideoTableProps) {
     const scrollRef = useRef<HTMLDivElement>(null)
     const anchorIndexRef = useRef<number | null>(null)
     const dragAnchorRef = useRef<number | null>(null)
@@ -51,7 +51,7 @@ export function VideoTable({
         selectedIds,
         onToggleSelection,
         onPlayVideo,
-        { onRatingChange, onTagsChange },
+        {onRatingChange, onTagsChange},
     )
 
     async function handleRegenerateFrames(video: Video) {
@@ -70,7 +70,7 @@ export function VideoTable({
 
             setVideoData((current) =>
                 current.map((item) =>
-                    item.id === video.id ? { ...item, frames } : item,
+                    item.id === video.id ? {...item, frames} : item,
                 ),
             )
         } catch (error) {
@@ -329,197 +329,197 @@ export function VideoTable({
         >
             <table className="library-table">
                 <thead>
-                    {table.getHeaderGroups().map((headerGroup) => (
-                        <tr key={headerGroup.id}>
-                            {headerGroup.headers.map((header) => {
-                                const sorted = header.column.getIsSorted()
+                {table.getHeaderGroups().map((headerGroup) => (
+                    <tr key={headerGroup.id}>
+                        {headerGroup.headers.map((header) => {
+                            const sorted = header.column.getIsSorted()
 
-                                return (
-                                    <th
-                                        key={header.id}
-                                        style={{
-                                            width: header.getSize(),
-                                            minWidth: header.getSize(),
-                                        }}
-                                    >
-                                        {header.isPlaceholder ? null : header.column.getCanSort() ? (
-                                            <button
-                                                type="button"
-                                                className="sort-button"
-                                                onClick={header.column.getToggleSortingHandler()}
-                                            >
-                                                <table.FlexRender
-                                                    header={header}
-                                                />
-                                                <span aria-hidden="true">
-                                                    {sorted === 'asc'
-                                                        ? '↑'
-                                                        : sorted === 'desc'
-                                                          ? '↓'
-                                                          : '↕'}
-                                                </span>
-                                            </button>
-                                        ) : (
+                            return (
+                                <th
+                                    key={header.id}
+                                    style={{
+                                        width: header.getSize(),
+                                        minWidth: header.getSize(),
+                                    }}
+                                >
+                                    {header.isPlaceholder ? null : header.column.getCanSort() ? (
+                                        <button
+                                            type="button"
+                                            className="sort-button"
+                                            onClick={header.column.getToggleSortingHandler()}
+                                        >
                                             <table.FlexRender
                                                 header={header}
                                             />
-                                        )}
-                                    </th>
-                                )
-                            })}
-                        </tr>
-                    ))}
+                                            <span aria-hidden="true">
+                                                    {sorted === 'asc'
+                                                        ? '↑'
+                                                        : sorted === 'desc'
+                                                            ? '↓'
+                                                            : '↕'}
+                                                </span>
+                                        </button>
+                                    ) : (
+                                        <table.FlexRender
+                                            header={header}
+                                        />
+                                    )}
+                                </th>
+                            )
+                        })}
+                    </tr>
+                ))}
                 </thead>
 
                 <tbody>
-                    {rows.length === 0 ? (
-                        <tr>
-                            <td colSpan={columns.length}>
-                                <div className="library-empty">
-                                    No videos match your search.
-                                </div>
-                            </td>
-                        </tr>
-                    ) : (
-                        <>
-                            {paddingTop > 0 && (
-                                <tr aria-hidden="true">
+                {rows.length === 0 ? (
+                    <tr>
+                        <td colSpan={columns.length}>
+                            <div className="library-empty">
+                                No videos match your search.
+                            </div>
+                        </td>
+                    </tr>
+                ) : (
+                    <>
+                        {paddingTop > 0 && (
+                            <tr aria-hidden="true">
+                                <td
+                                    colSpan={columns.length}
+                                    style={{
+                                        height: paddingTop,
+                                        padding: 0,
+                                        border: 0,
+                                    }}
+                                />
+                            </tr>
+                        )}
+
+                        {virtualRows.map((virtualRow) => {
+                            const row = rows[virtualRow.index]
+                            const video = row.original
+                            const isSelected = selectedIds.has(row.id)
+                            const cells = row.getAllCells()
+                            const frames = video.frames ?? []
+
+                            return (
+                                <tr
+                                    key={row.id}
+                                    className={
+                                        isSelected
+                                            ? 'video-row-selected'
+                                            : undefined
+                                    }
+                                    aria-selected={isSelected}
+                                    style={{height: virtualRow.size}}
+                                    onMouseDown={(event) =>
+                                        handleRowMouseDown(
+                                            event,
+                                            virtualRow.index,
+                                            row.id,
+                                        )
+                                    }
+                                    onMouseEnter={() =>
+                                        handleRowMouseEnter(
+                                            virtualRow.index,
+                                        )
+                                    }
+                                >
                                     <td
                                         colSpan={columns.length}
-                                        style={{
-                                            height: paddingTop,
-                                            padding: 0,
-                                            border: 0,
-                                        }}
-                                    />
-                                </tr>
-                            )}
-
-                            {virtualRows.map((virtualRow) => {
-                                const row = rows[virtualRow.index]
-                                const video = row.original
-                                const isSelected = selectedIds.has(row.id)
-                                const cells = row.getAllCells()
-                                const frames = video.frames ?? []
-
-                                return (
-                                    <tr
-                                        key={row.id}
-                                        className={
-                                            isSelected
-                                                ? 'video-row-selected'
-                                                : undefined
-                                        }
-                                        aria-selected={isSelected}
-                                        style={{ height: virtualRow.size }}
-                                        onMouseDown={(event) =>
-                                            handleRowMouseDown(
-                                                event,
-                                                virtualRow.index,
-                                                row.id,
-                                            )
-                                        }
-                                        onMouseEnter={() =>
-                                            handleRowMouseEnter(
-                                                virtualRow.index,
-                                            )
-                                        }
+                                        className="video-preview-cell"
                                     >
-                                        <td
-                                            colSpan={columns.length}
-                                            className="video-preview-cell"
-                                        >
-                                            <table className="video-entry-table">
-                                                <tbody>
-                                                    <tr className="video-metadata-row">
-                                                        {cells.map((cell) => (
-                                                            <td
-                                                                key={cell.id}
-                                                                style={{
-                                                                    width: cell.column.getSize(),
-                                                                }}
-                                                            >
-                                                                <table.FlexRender
-                                                                    cell={cell}
-                                                                />
-                                                            </td>
-                                                        ))}
-                                                    </tr>
+                                        <table className="video-entry-table">
+                                            <tbody>
+                                            <tr className="video-metadata-row">
+                                                {cells.map((cell) => (
+                                                    <td
+                                                        key={cell.id}
+                                                        style={{
+                                                            width: cell.column.getSize(),
+                                                        }}
+                                                    >
+                                                        <table.FlexRender
+                                                            cell={cell}
+                                                        />
+                                                    </td>
+                                                ))}
+                                            </tr>
 
-                                                    <tr className="video-filmstrip-row">
-                                                        <td colSpan={cells.length}>
-                                                            <div className="filmstrip-actions">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => void handleRegenerateFrames(video)}
-                                                                    disabled={refreshingFrameIds.has(video.id)}
-                                                                    title={
-                                                                        frameRefreshErrors.get(video.id) ??
-                                                                        'Regenerate thumbnails for this video'
-                                                                    }
-                                                                >
-                                                                    {refreshingFrameIds.has(video.id)
-                                                                        ? 'Regenerating thumbnails…'
-                                                                        : 'Regenerate thumbnails'}
-                                                                </button>
-                                                                {frameRefreshErrors.has(video.id) && (
-                                                                    <span className="filmstrip-refresh-error" role="alert">
+                                            <tr className="video-filmstrip-row">
+                                                <td colSpan={cells.length}>
+                                                    <div className="filmstrip-actions">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => void handleRegenerateFrames(video)}
+                                                            disabled={refreshingFrameIds.has(video.id)}
+                                                            title={
+                                                                frameRefreshErrors.get(video.id) ??
+                                                                'Regenerate thumbnails for this video'
+                                                            }
+                                                        >
+                                                            {refreshingFrameIds.has(video.id)
+                                                                ? 'Regenerating thumbnails…'
+                                                                : 'Regenerate thumbnails'}
+                                                        </button>
+                                                        {frameRefreshErrors.has(video.id) && (
+                                                            <span className="filmstrip-refresh-error" role="alert">
                                                                         {frameRefreshErrors.get(video.id)}
                                                                     </span>
-                                                                )}
-                                                            </div>
-                                                            <div className="filmstrip">
-                                                                {Array.from(
-                                                                    { length: 10 },
-                                                                    (_, index) => {
-                                                                        const frame =
-                                                                            frames[index]
+                                                        )}
+                                                    </div>
+                                                    <div className="filmstrip">
+                                                        {Array.from(
+                                                            {length: 10},
+                                                            (_, index) => {
+                                                                const frame =
+                                                                    frames[index]
 
-                                                                        return (
-                                                                            <div
-                                                                                className="filmstrip-frame"
-                                                                                key={index}
-                                                                            >
-                                                                                {frame ? (
-                                                                                    <img
-                                                                                        src={frame}
-                                                                                        alt={`Frame ${index + 1} from ${video.filename}`}
-                                                                                        loading="lazy"
-                                                                                        draggable={false}
-                                                                                    />
-                                                                                ) : (
-                                                                                    <div className="frame-placeholder">
-                                                                                        {index + 1}
-                                                                                    </div>
-                                                                                )}
+                                                                return (
+                                                                    <div
+                                                                        className="filmstrip-frame"
+                                                                        key={index}
+                                                                    >
+                                                                        {frame ? (
+                                                                            <img
+                                                                                src={frame}
+                                                                                alt={`Frame ${index + 1} from ${video.filename}`}
+                                                                                loading="lazy"
+                                                                                draggable={false}
+                                                                            />
+                                                                        ) : (
+                                                                            <div className="frame-placeholder">
+                                                                                {index + 1}
                                                                             </div>
-                                                                        )
-                                                                    },
-                                                                )}
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                </tbody>
-                                            </table>
-                                        </td>
-                                    </tr>
-                                )
-                            })}
-
-                            {paddingBottom > 0 && (
-                                <tr aria-hidden="true">
-                                    <td
-                                        colSpan={columns.length}
-                                        style={{
-                                            height: paddingBottom,
-                                            padding: 0,
-                                            border: 0,
-                                        }}
-                                    />
+                                                                        )}
+                                                                    </div>
+                                                                )
+                                                            },
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            </tbody>
+                                        </table>
+                                    </td>
                                 </tr>
-                            )}
-                        </>
-                    )}
+                            )
+                        })}
+
+                        {paddingBottom > 0 && (
+                            <tr aria-hidden="true">
+                                <td
+                                    colSpan={columns.length}
+                                    style={{
+                                        height: paddingBottom,
+                                        padding: 0,
+                                        border: 0,
+                                    }}
+                                />
+                            </tr>
+                        )}
+                    </>
+                )}
                 </tbody>
             </table>
         </div>

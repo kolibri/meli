@@ -1,4 +1,4 @@
-import type { Video } from '../types'
+import type {Video} from '../types'
 
 type LibraryDeleteConfirmationProps = {
     pendingDelete: Video[]
@@ -8,11 +8,11 @@ type LibraryDeleteConfirmationProps = {
 }
 
 export function LibraryDeleteConfirmation({
-    pendingDelete,
-    isDeleting,
-    onCancel,
-    onConfirm,
-}: LibraryDeleteConfirmationProps) {
+                                              pendingDelete,
+                                              isDeleting,
+                                              onCancel,
+                                              onConfirm,
+                                          }: LibraryDeleteConfirmationProps) {
     return (
         <div className="delete-confirmation-backdrop">
             <section

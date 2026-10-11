@@ -1,8 +1,8 @@
-import { useEffect, useRef } from 'react'
-import type { Dispatch, SetStateAction } from 'react'
-import { invoke } from '@tauri-apps/api/core'
+import type {Dispatch, SetStateAction} from 'react'
+import {useEffect, useRef} from 'react'
+import {invoke} from '@tauri-apps/api/core'
 
-import type { Video } from '../types'
+import type {Video} from '../types'
 
 type RequestedFrames = {
     current: Set<string>
@@ -62,7 +62,7 @@ export function useThumbnails(
                     const frames = updates.get(video.id)
 
                     return frames
-                        ? { ...video, frames }
+                        ? {...video, frames}
                         : video
                 }),
             )
@@ -109,7 +109,7 @@ export function useThumbnails(
             while (
                 runningRef.current < MAX_CONCURRENT_REQUESTS &&
                 queueRef.current.length > 0
-            ) {
+                ) {
                 runningRef.current++
 
                 void processQueue().finally(() => {

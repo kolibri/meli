@@ -1,4 +1,3 @@
-
 import "./Filmstrip.css";
 
 type FilmstripProps = {

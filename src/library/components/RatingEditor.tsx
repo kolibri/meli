@@ -1,9 +1,9 @@
-import type { Video } from '../types'
+import type {Video} from '../types'
 
 export function RatingEditor({
-                          video,
-                          onRatingChange,
-                      }: {
+                                 video,
+                                 onRatingChange,
+                             }: {
     video: Video
     onRatingChange: (path: string, rating: number) => Promise<boolean>
 }) {
@@ -11,7 +11,7 @@ export function RatingEditor({
 
     return (
         <div className="rating" aria-label={`Rating ${rating} out of 5`}>
-            {Array.from({ length: 5 }, (_, index) => {
+            {Array.from({length: 5}, (_, index) => {
                 const star = index + 1
                 const active = star <= rating
 

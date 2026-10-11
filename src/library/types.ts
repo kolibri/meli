@@ -1,4 +1,3 @@
-
 export type Video = {
     id: string
     path: string

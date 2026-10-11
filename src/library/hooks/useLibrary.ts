@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
-import type { Dispatch, SetStateAction } from 'react'
-import { invoke } from '@tauri-apps/api/core'
-import { open } from '@tauri-apps/plugin-dialog'
+import type {Dispatch, SetStateAction} from 'react'
+import {useEffect, useMemo, useState} from 'react'
+import {invoke} from '@tauri-apps/api/core'
+import {open} from '@tauri-apps/plugin-dialog'
 
-import type { Video } from '../types'
+import type {Video} from '../types'
 
 type RequestedFrames = {
     current: Set<string>

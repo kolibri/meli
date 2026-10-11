@@ -1,9 +1,8 @@
-
 import Library from "./Library";
 import "./index.css";
 
 function App() {
-    return <Library />;
+    return <Library/>;
 }
 
 export default App;

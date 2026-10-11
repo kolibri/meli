@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
-import { invoke } from '@tauri-apps/api/core'
+import {useCallback, useEffect, useState} from 'react'
+import {invoke} from '@tauri-apps/api/core'
 
-import type { Playlist, Video } from '../types'
+import type {Playlist, Video} from '../types'
 
 export function usePlaylists(storageDir: string | null) {
     const [playlists, setPlaylists] = useState<Playlist[]>([])
@@ -57,7 +57,7 @@ export function usePlaylists(storageDir: string | null) {
         setPlaylistError('')
 
         try {
-            await invoke('create_playlist', { name: trimmed })
+            await invoke('create_playlist', {name: trimmed})
             await refreshPlaylists()
         } catch (error) {
             setPlaylistError(String(error))
@@ -85,7 +85,7 @@ export function usePlaylists(storageDir: string | null) {
         setPlaylistError('')
 
         try {
-            await invoke('delete_playlist', { playlistId })
+            await invoke('delete_playlist', {playlistId})
 
             if (activePlaylistId === playlistId) {
                 setActivePlaylistId(null)
@@ -116,7 +116,7 @@ export function usePlaylists(storageDir: string | null) {
             if (activePlaylistId === playlistId) {
                 const videos = await invoke<Video[]>(
                     'load_playlist_videos',
-                    { playlistId },
+                    {playlistId},
                 )
                 setPlaylistVideos(videos)
             }

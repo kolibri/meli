@@ -2,6 +2,7 @@ import type {Dispatch, SetStateAction} from 'react'
 
 import type {Playlist, Video} from '../types.ts'
 import type {AvailableTag, RatingFilter} from '../selectors.ts'
+import {LibraryBulkTagBar} from './LibraryBulkTagBar'
 
 type LibrarySidebarProps = {
     filteredVideos: Video[]
@@ -26,6 +27,10 @@ type LibrarySidebarProps = {
     availableTags: AvailableTag[]
     selectedIds: Set<string>
     createPlaylist: (name: string) => Promise<void>
+    bulkTag: string
+    isBulkTagging: boolean
+    onBulkTagChange: (value: string) => void
+    onBulkTag: () => void
 }
 
 export function LibrarySidebar(
@@ -51,6 +56,10 @@ export function LibrarySidebar(
         setTagMatchMode,
         availableTags,
         createPlaylist,
+        bulkTag,
+        isBulkTagging,
+        onBulkTagChange,
+        onBulkTag,
     }: LibrarySidebarProps) {
     return (
         <aside className="library-sidebar" aria-label="Library filters">
@@ -282,6 +291,14 @@ export function LibrarySidebar(
                     OR
                 </button>
             </div>
+
+            <LibraryBulkTagBar
+                selectedCount={selectedVideos.length}
+                bulkTag={bulkTag}
+                isBulkTagging={isBulkTagging}
+                onBulkTagChange={onBulkTagChange}
+                onBulkTag={onBulkTag}
+            />
 
             {availableTags.length === 0 ? (
                 <p className="library-sidebar-empty">No tags yet</p>

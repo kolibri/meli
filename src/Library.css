@@ -849,10 +849,11 @@
 
 .bulk-tag-bar {
     display: flex;
-    align-items: center;
-    flex-wrap: wrap;
+    flex-direction: column;
+    align-items: stretch;
     gap: 8px;
-    padding: 8px 12px;
+    padding: 8px 0 12px;
+    margin: 0 8px 10px;
     border-bottom: 1px solid var(--border-color, #444);
 }
 
@@ -862,7 +863,8 @@
 }
 
 .bulk-tag-bar input {
-    flex: 1 1 180px;
+    box-sizing: border-box;
+    width: 100%;
     min-width: 0;
     padding: 7px 9px;
     border: 1px solid #3a3f49;
@@ -875,4 +877,9 @@
 .bulk-tag-bar input:focus {
     border-color: #8b9cf6;
     outline: none;
+}
+
+.bulk-tag-bar button {
+    width: 100%;
+    padding: 7px 9px;
 }

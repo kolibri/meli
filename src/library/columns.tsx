@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import {useEffect, useRef, useState} from 'react'
+import {createPortal} from 'react-dom'
 
 import {
     columnSizingFeature,
@@ -9,9 +9,9 @@ import {
     type ColumnDef,
 } from '@tanstack/react-table'
 
-import type { Video } from './types'
-import { RatingEditor } from './components/RatingEditor'
-import { formatDuration, formatSize } from './formatters'
+import type {Video} from './types'
+import {RatingEditor} from './components/RatingEditor'
+import {formatDuration, formatSize} from './formatters'
 
 export const features = tableFeatures({
     columnSizingFeature,
@@ -242,6 +242,12 @@ function TagsEditor({
                         ref={dropdownRef}
                         className="tag-suggestions"
                         role="listbox"
+                        onWheel={(event) => {
+                            event.stopPropagation()
+                            const element = event.currentTarget
+                            element.scrollTop += event.deltaY * 0.1
+                            event.preventDefault()
+                        }}
                         style={{
                             position: 'fixed',
                             top: dropdownStyle.top,
@@ -249,6 +255,7 @@ function TagsEditor({
                             width: dropdownStyle.width,
                             maxHeight: dropdownStyle.maxHeight,
                             overflowY: 'auto',
+                            overscrollBehavior: 'contain',
                             zIndex: 99999,
                         }}
                     >
@@ -278,7 +285,7 @@ export function createColumns(
     selectedIds: Set<string>,
     onToggleSelection: (id: string, checked: boolean) => void,
     onPlayVideo: (path: string) => void,
-    { onRatingChange, onTagsChange }: MetadataCallbacks,
+    {onRatingChange, onTagsChange}: MetadataCallbacks,
 ): ColumnDef<typeof features, Video>[] {
     return [
         {

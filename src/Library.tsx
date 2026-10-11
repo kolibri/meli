@@ -24,8 +24,6 @@ export function Library() {
     const [bulkTag, setBulkTag] = useState('')
     const [isBulkTagging, setIsBulkTagging] = useState(false)
 
-
-
     const {
         storageDir,
         storageLoading,
@@ -88,19 +86,28 @@ export function Library() {
         }))
         .sort((a, b) => a.name.localeCompare(b.name))
 
+
     const videosForView =
         activePlaylistId === null
             ? filteredVideos
-            : playlistVideos.filter((video) => {
-                const query = search.trim().toLocaleLowerCase()
-                return (
-                    !query ||
-                    video.filename.toLocaleLowerCase().includes(query) ||
-                    video.tags.some((tag) =>
-                        tag.toLocaleLowerCase().includes(query),
-                    )
+            : playlistVideos
+                .map(
+                    (playlistVideo) =>
+                        videoData.find(
+                            (video) => video.path === playlistVideo.path,
+                        ) ?? playlistVideo,
                 )
-            })
+                .filter((video) => {
+                    const query = search.trim().toLocaleLowerCase()
+
+                    return (
+                        !query ||
+                        video.filename.toLocaleLowerCase().includes(query) ||
+                        (video.tags ?? []).some((tag) =>
+                            tag.toLocaleLowerCase().includes(query),
+                        )
+                    )
+                })
 
     const visibleVideos = videosForView.filter((video) => {
         const videoTags = (video.tags ?? []).map((tag) =>
@@ -262,6 +269,71 @@ export function Library() {
 
         setShowDeleteConfirmation(false)
         setPendingDelete([])
+    }
+
+    async function handleBulkTag() {
+        const tagToAdd = bulkTag.trim()
+
+        if (!tagToAdd || selectedVideos.length === 0 || isBulkTagging) {
+            return
+        }
+
+        setIsBulkTagging(true)
+        setMetadataError('')
+
+        const updatedTags = new Map<string, string[]>()
+        const failures: string[] = []
+
+        try {
+            for (const video of selectedVideos) {
+                const existingTags = video.tags ?? []
+                const alreadyHasTag = existingTags.some(
+                    (tag) => tag.trim().toLocaleLowerCase() ===
+                        tagToAdd.toLocaleLowerCase(),
+                )
+
+                if (alreadyHasTag) {
+                    continue
+                }
+
+                const nextTags = [...existingTags, tagToAdd]
+
+                try {
+                    await invoke<void>('update_video_tags', {
+                        videoPath: video.path,
+                        tags: nextTags,
+                    })
+                    updatedTags.set(video.path, nextTags)
+                } catch (error) {
+                    failures.push(`${video.filename}: ${String(error)}`)
+                }
+            }
+
+            if (updatedTags.size > 0) {
+                setVideoData((current) =>
+                    current.map((video) => {
+                        const tags = updatedTags.get(video.path)
+                        return tags ? {...video, tags} : video
+                    }),
+                )
+            }
+
+            if (failures.length > 0) {
+                setMetadataError(
+                    `Added "${tagToAdd}" to ${updatedTags.size} video(s). ` +
+                    `${failures.length} update(s) failed:\n${failures.join('\n')}`,
+                )
+            } else {
+                setMetadataError(
+                    updatedTags.size > 0
+                        ? `Added "${tagToAdd}" to ${updatedTags.size} video(s).`
+                        : `All selected videos already have the tag "${tagToAdd}".`,
+                )
+                setBulkTag('')
+            }
+        } finally {
+            setIsBulkTagging(false)
+        }
     }
 
     async function confirmDeleteSelected() {

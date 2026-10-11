@@ -8,6 +8,9 @@ import {useLibrary} from './library/hooks/useLibrary'
 import {LibraryToolbar} from './library/components/LibraryToolbar'
 import {VideoTable} from './library/components/VideoTable'
 import {usePlaylists} from './library/hooks/usePlaylists'
+import {LibraryBulkTagBar} from './library/components/LibraryBulkTagBar'
+import {LibraryDeleteConfirmation} from './library/components/LibraryDeleteConfirmation'
+import {LibraryActiveFilters} from './library/components/LibraryActiveFilters'
 
 export function Library() {
     const requestedFrames = useRef<Set<string>>(new Set())
@@ -681,49 +684,18 @@ export function Library() {
                 </aside>
 
                 <section className="library-results" aria-label="Video results">
-                    {(selectedTags.length > 0 || untaggedOnly || ratingFilter !== null) && (
-                        <div className="library-active-filter">
-                            {untaggedOnly && (
-                                <span>
-                                    Tags: <strong>Untagged</strong>
-                                </span>
-                            )}
-
-                            {selectedTags.length > 0 && (
-                                <span>
-                                    Tags ({tagMatchMode}):{' '}
-                                    <strong>
-                                        {selectedTags
-                                            .map((key) => tagNames.get(key) ?? key)
-                                            .join(', ')}
-                                    </strong>
-                                </span>
-                            )}
-
-                            {ratingFilter !== null && (
-                                <span>
-                                    Rating:{' '}
-                                    <strong>
-                                        {ratingFilter === 'unrated'
-                                            ? 'Not rated'
-                                            : `${ratingFilter}+ stars`}
-                                    </strong>
-                                </span>
-                            )}
-
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setSelectedTags([])
-                                    setUntaggedOnly(false)
-                                    setRatingFilter(null)
-                                }}
-                                title="Clear all filters"
-                            >
-                                Clear filters
-                            </button>
-                        </div>
-                    )}
+                    <LibraryActiveFilters
+                        selectedTags={selectedTags}
+                        tagMatchMode={tagMatchMode}
+                        untaggedOnly={untaggedOnly}
+                        ratingFilter={ratingFilter}
+                        tagNames={tagNames}
+                        onClear={() => {
+                            setSelectedTags([])
+                            setUntaggedOnly(false)
+                            setRatingFilter(null)
+                        }}
+                    />
 
                     {activePlaylistId !== null && (
                         <div className="playlist-actions">
@@ -771,32 +743,13 @@ export function Library() {
                         </div>
                     )}
 
-                    <div className="bulk-tag-bar">
-                        <label htmlFor="bulk-tag-input">
-                            Add tag to {selectedVideos.length} selected video(s)
-                        </label>
-
-                        <input
-                            id="bulk-tag-input"
-                            type="text"
-                            value={bulkTag}
-                            onChange={(event) => setBulkTag(event.target.value)}
-                            placeholder="Enter tag to add"
-                            disabled={isBulkTagging || selectedVideos.length === 0}
-                        />
-
-                        <button
-                            type="button"
-                            onClick={() => void handleBulkTag()}
-                            disabled={
-                                isBulkTagging ||
-                                selectedVideos.length === 0 ||
-                                !bulkTag.trim()
-                            }
-                        >
-                            {isBulkTagging ? 'Adding tag…' : 'Add tag to selected'}
-                        </button>
-                    </div>
+                    <LibraryBulkTagBar
+                        selectedCount={selectedVideos.length}
+                        bulkTag={bulkTag}
+                        isBulkTagging={isBulkTagging}
+                        onBulkTagChange={setBulkTag}
+                        onBulkTag={() => void handleBulkTag()}
+                    />
 
                     <VideoTable
                         videos={visibleVideos}
@@ -814,60 +767,12 @@ export function Library() {
             </div>
 
             {showDeleteConfirmation && (
-                <div className="delete-confirmation-backdrop">
-                    <section
-                        className="delete-confirmation-modal"
-                        role="alertdialog"
-                        aria-modal="true"
-                        aria-labelledby="delete-confirmation-title"
-                        aria-describedby="delete-confirmation-description"
-                    >
-                        <h2 id="delete-confirmation-title">
-                            Permanently delete files?
-                        </h2>
-
-                        <p id="delete-confirmation-description">
-                            You are about to permanently delete{' '}
-                            <strong>{pendingDelete.length}</strong>{' '}
-                            {pendingDelete.length === 1 ? 'file' : 'files'} from
-                            your filesystem. This cannot be undone.
-                        </p>
-
-                        <ul className="delete-confirmation-file-list">
-                            {pendingDelete.slice(0, 8).map((video) => (
-                                <li key={video.path}>{video.filename}</li>
-                            ))}
-                        </ul>
-
-                        {pendingDelete.length > 8 && (
-                            <p>
-                                And {pendingDelete.length - 8} more{' '}
-                                {pendingDelete.length - 8 === 1 ? 'file' : 'files'}.
-                            </p>
-                        )}
-
-                        <div className="delete-confirmation-actions">
-                            <button
-                                type="button"
-                                onClick={handleCancelDelete}
-                                disabled={isDeleting}
-                            >
-                                Cancel
-                            </button>
-
-                            <button
-                                type="button"
-                                className="delete-confirmation-danger"
-                                onClick={() => void confirmDeleteSelected()}
-                                disabled={isDeleting || pendingDelete.length === 0}
-                            >
-                                {isDeleting
-                                    ? 'Deleting…'
-                                    : 'Permanently delete'}
-                            </button>
-                        </div>
-                    </section>
-                </div>
+                <LibraryDeleteConfirmation
+                    pendingDelete={pendingDelete}
+                    isDeleting={isDeleting}
+                    onCancel={handleCancelDelete}
+                    onConfirm={() => void confirmDeleteSelected()}
+                />
             )}
         </main>
     )

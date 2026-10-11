@@ -14,12 +14,17 @@ export function Library() {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
     const [selectedTags, setSelectedTags] = useState<string[]>([])
     const [tagMatchMode, setTagMatchMode] = useState<'AND' | 'OR'>('AND')
+    const [untaggedOnly, setUntaggedOnly] = useState(false)
     const [ratingFilter, setRatingFilter] = useState<number | 'unrated' | null>(null)
     const [playbackError, setPlaybackError] = useState('')
     const [metadataError, setMetadataError] = useState('')
     const [isDeleting, setIsDeleting] = useState(false)
     const [deleteError, setDeleteError] = useState('')
     const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false)
+    const [bulkTag, setBulkTag] = useState('')
+    const [isBulkTagging, setIsBulkTagging] = useState(false)
+
+
 
     const {
         storageDir,
@@ -102,6 +107,9 @@ export function Library() {
             tag.trim().toLocaleLowerCase(),
         )
 
+        const matchesUntagged =
+            !untaggedOnly || !videoTags.some((tag) => tag.length > 0)
+
         const matchesTags =
             selectedTags.length === 0 ||
             (tagMatchMode === 'AND'
@@ -116,7 +124,7 @@ export function Library() {
                 ? rating === 0
                 : rating >= ratingFilter)
 
-        return matchesTags && matchesRating
+        return matchesUntagged && matchesTags && matchesRating
     })
 
     const selectedVideos = videoData.filter(
@@ -343,7 +351,10 @@ export function Library() {
                         type="button"
                         className={`library-filter-item${selectedTags.length === 0 ? ' active' : ''}`}
                         aria-pressed={selectedTags.length === 0}
-                        onClick={() => setSelectedTags([])}
+                        onClick={() => {
+                            setSelectedTags([])
+                            setUntaggedOnly(false)
+                        }}
                     >
                         <span className="library-filter-label">
                             <span aria-hidden="true">▤</span>
@@ -351,6 +362,29 @@ export function Library() {
                         </span>
                         <span className="library-filter-count">
                             {filteredVideos.length}
+                        </span>
+                    </button>
+
+                    <button
+                        type="button"
+                        className={`library-filter-item${untaggedOnly ? ' active' : ''}`}
+                        aria-pressed={untaggedOnly}
+                        onClick={() => {
+                            setUntaggedOnly((current) => !current)
+                            setSelectedTags([])
+                        }}
+                    >
+                        <span className="library-filter-label">
+                            <span aria-hidden="true">#</span>
+                            Untagged
+                        </span>
+                        <span className="library-filter-count">
+                            {filteredVideos.filter(
+                                (video) =>
+                                    !(video.tags ?? []).some(
+                                        (tag) => tag.trim().length > 0,
+                                    ),
+                            ).length}
                         </span>
                     </button>
 
@@ -575,8 +609,14 @@ export function Library() {
                 </aside>
 
                 <section className="library-results" aria-label="Video results">
-                    {(selectedTags.length > 0 || ratingFilter !== null) && (
+                    {(selectedTags.length > 0 || untaggedOnly || ratingFilter !== null) && (
                         <div className="library-active-filter">
+                            {untaggedOnly && (
+                                <span>
+                                    Tags: <strong>Untagged</strong>
+                                </span>
+                            )}
+
                             {selectedTags.length > 0 && (
                                 <span>
                                     Tags ({tagMatchMode}):{' '}
@@ -603,6 +643,7 @@ export function Library() {
                                 type="button"
                                 onClick={() => {
                                     setSelectedTags([])
+                                    setUntaggedOnly(false)
                                     setRatingFilter(null)
                                 }}
                                 title="Clear all filters"
@@ -657,6 +698,33 @@ export function Library() {
                             </button>
                         </div>
                     )}
+
+                    <div className="bulk-tag-bar">
+                        <label htmlFor="bulk-tag-input">
+                            Add tag to {selectedVideos.length} selected video(s)
+                        </label>
+
+                        <input
+                            id="bulk-tag-input"
+                            type="text"
+                            value={bulkTag}
+                            onChange={(event) => setBulkTag(event.target.value)}
+                            placeholder="Enter tag to add"
+                            disabled={isBulkTagging || selectedVideos.length === 0}
+                        />
+
+                        <button
+                            type="button"
+                            onClick={() => void handleBulkTag()}
+                            disabled={
+                                isBulkTagging ||
+                                selectedVideos.length === 0 ||
+                                !bulkTag.trim()
+                            }
+                        >
+                            {isBulkTagging ? 'Adding tag…' : 'Add tag to selected'}
+                        </button>
+                    </div>
 
                     <VideoTable
                         videos={visibleVideos}

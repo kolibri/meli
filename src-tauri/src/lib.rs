@@ -184,6 +184,61 @@ async fn get_video_frames(
     .map_err(|error| format!("Thumbnail worker failed: {error}"))?
 }
 
+#[tauri::command]
+async fn regenerate_video_frames(
+    app: AppHandle,
+    video_path: String,
+    duration: f64,
+) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = PathBuf::from(&video_path);
+
+        if !path.is_file() {
+            return Err(format!("Video file not found: {}", video_path));
+        }
+
+        let metadata = fs::metadata(&path).map_err(|e| e.to_string())?;
+        let modified = metadata
+            .modified()
+            .ok()
+            .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|time| time.as_secs())
+            .unwrap_or(0);
+
+        let mut hasher = DefaultHasher::new();
+        video_path.hash(&mut hasher);
+        metadata.len().hash(&mut hasher);
+        modified.hash(&mut hasher);
+
+        let storage_dir = read_storage_dir(&app)?
+            .ok_or_else(|| "Storage location has not been configured".to_string())?;
+
+        if !storage_dir.is_dir() {
+            return Err(format!(
+                "Storage directory is unavailable: {}",
+                storage_dir.display()
+            ));
+        }
+
+        let cache_dir = storage_dir
+            .join("thumbnails")
+            .join(format!("{:016x}", hasher.finish()));
+
+        if cache_dir.exists() {
+            fs::remove_dir_all(&cache_dir).map_err(|error| {
+                format!(
+                    "Could not remove cached thumbnails for {}: {}",
+                    video_path, error
+                )
+            })?;
+        }
+
+        get_video_frames_blocking(app, video_path, duration)
+    })
+    .await
+    .map_err(|error| format!("Thumbnail regeneration worker failed: {error}"))?
+}
+
 
 fn get_video_frames_blocking(
     app: AppHandle,
@@ -684,6 +739,7 @@ pub fn run() {
             greet,
             scan_video_folder,
             get_video_frames,
+            regenerate_video_frames,
             get_storage_dir,
             set_storage_dir,
             load_library,

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTable } from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
+import { invoke } from '@tauri-apps/api/core'
 
 import { createColumns, features } from '../columns'
 import { useThumbnails } from '../hooks/useThumbnails'
@@ -43,6 +44,8 @@ export function VideoTable({
     const dragActiveRef = useRef(false)
     const pointerYRef = useRef(0)
     const lastDragIndexRef = useRef<number | null>(null)
+    const [refreshingFrameIds, setRefreshingFrameIds] = useState<Set<string>>(new Set())
+    const [frameRefreshErrors, setFrameRefreshErrors] = useState<Map<string, string>>(new Map())
 
     const columns = createColumns(
         selectedIds,
@@ -50,6 +53,38 @@ export function VideoTable({
         onPlayVideo,
         { onRatingChange, onTagsChange },
     )
+
+    async function handleRegenerateFrames(video: Video) {
+        setRefreshingFrameIds((current) => new Set(current).add(video.id))
+        setFrameRefreshErrors((current) => {
+            const next = new Map(current)
+            next.delete(video.id)
+            return next
+        })
+
+        try {
+            const frames = await invoke<string[]>('regenerate_video_frames', {
+                videoPath: video.path,
+                duration: video.duration,
+            })
+
+            setVideoData((current) =>
+                current.map((item) =>
+                    item.id === video.id ? { ...item, frames } : item,
+                ),
+            )
+        } catch (error) {
+            setFrameRefreshErrors((current) =>
+                new Map(current).set(video.id, String(error)),
+            )
+        } finally {
+            setRefreshingFrameIds((current) => {
+                const next = new Set(current)
+                next.delete(video.id)
+                return next
+            })
+        }
+    }
 
     const table = useTable({
         features,
@@ -413,6 +448,26 @@ export function VideoTable({
 
                                                     <tr className="video-filmstrip-row">
                                                         <td colSpan={cells.length}>
+                                                            <div className="filmstrip-actions">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => void handleRegenerateFrames(video)}
+                                                                    disabled={refreshingFrameIds.has(video.id)}
+                                                                    title={
+                                                                        frameRefreshErrors.get(video.id) ??
+                                                                        'Regenerate thumbnails for this video'
+                                                                    }
+                                                                >
+                                                                    {refreshingFrameIds.has(video.id)
+                                                                        ? 'Regenerating thumbnails…'
+                                                                        : 'Regenerate thumbnails'}
+                                                                </button>
+                                                                {frameRefreshErrors.has(video.id) && (
+                                                                    <span className="filmstrip-refresh-error" role="alert">
+                                                                        {frameRefreshErrors.get(video.id)}
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                             <div className="filmstrip">
                                                                 {Array.from(
                                                                     { length: 10 },

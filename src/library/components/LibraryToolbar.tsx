@@ -19,26 +19,27 @@ type LibraryToolbarProps = {
     isDeleting: boolean
 }
 
-export function LibraryToolbar({
-                                   videoCount,
-                                   storageDir,
-                                   storageLoading,
-                                   storageError,
-                                   onChooseStorage,
-                                   isImporting,
-                                   importError,
-                                   onAddFolder,
-                                   search,
-                                   onSearchChange,
-                                   selectedCount,
-                                   onPlaySelected,
-                                   onSelectVisible,
-                                   onClearSelection,
-                                   playbackError,
-                                   metadataError,
-                                   onDeleteSelected,
-                                   isDeleting,
-                               }: LibraryToolbarProps) {
+export function LibraryToolbar(
+    {
+        videoCount,
+        storageDir,
+        storageLoading,
+        storageError,
+        onChooseStorage,
+        isImporting,
+        importError,
+        onAddFolder,
+        search,
+        onSearchChange,
+        selectedCount,
+        onPlaySelected,
+        onSelectVisible,
+        onClearSelection,
+        playbackError,
+        metadataError,
+        onDeleteSelected,
+        isDeleting,
+    }: LibraryToolbarProps) {
     return (
         <header className="library-toolbar">
             <div>

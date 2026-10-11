@@ -6,13 +6,14 @@ type LibraryBulkTagBarProps = {
     onBulkTag: () => void
 }
 
-export function LibraryBulkTagBar({
-                                      selectedCount,
-                                      bulkTag,
-                                      isBulkTagging,
-                                      onBulkTagChange,
-                                      onBulkTag,
-                                  }: LibraryBulkTagBarProps) {
+export function LibraryBulkTagBar(
+    {
+        selectedCount,
+        bulkTag,
+        isBulkTagging,
+        onBulkTagChange,
+        onBulkTag,
+    }: LibraryBulkTagBarProps) {
     return (
         <div className="bulk-tag-bar">
             <label htmlFor="bulk-tag-input">

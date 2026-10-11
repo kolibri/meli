@@ -7,14 +7,15 @@ type LibraryActiveFiltersProps = {
     onClear: () => void
 }
 
-export function LibraryActiveFilters({
-                                         selectedTags,
-                                         tagMatchMode,
-                                         untaggedOnly,
-                                         ratingFilter,
-                                         tagNames,
-                                         onClear,
-                                     }: LibraryActiveFiltersProps) {
+export function LibraryActiveFilters(
+    {
+        selectedTags,
+        tagMatchMode,
+        untaggedOnly,
+        ratingFilter,
+        tagNames,
+        onClear,
+    }: LibraryActiveFiltersProps) {
     if (selectedTags.length === 0 && !untaggedOnly && ratingFilter === null) {
         return null
     }

@@ -24,18 +24,19 @@ type VideoTableProps = {
     onTagsChange: (path: string, tags: string[]) => Promise<boolean>
 }
 
-export function VideoTable({
-                               videos,
-                               setVideoData,
-                               storageDir,
-                               requestedFrames,
-                               selectedIds,
-                               onToggleSelection,
-                               onSetSelection,
-                               onPlayVideo,
-                               onRatingChange,
-                               onTagsChange,
-                           }: VideoTableProps) {
+export function VideoTable(
+    {
+        videos,
+        setVideoData,
+        storageDir,
+        requestedFrames,
+        selectedIds,
+        onToggleSelection,
+        onSetSelection,
+        onPlayVideo,
+        onRatingChange,
+        onTagsChange,
+    }: VideoTableProps) {
     const scrollRef = useRef<HTMLDivElement>(null)
     const anchorIndexRef = useRef<number | null>(null)
     const dragAnchorRef = useRef<number | null>(null)

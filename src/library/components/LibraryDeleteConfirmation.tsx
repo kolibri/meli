@@ -7,12 +7,13 @@ type LibraryDeleteConfirmationProps = {
     onConfirm: () => void
 }
 
-export function LibraryDeleteConfirmation({
-                                              pendingDelete,
-                                              isDeleting,
-                                              onCancel,
-                                              onConfirm,
-                                          }: LibraryDeleteConfirmationProps) {
+export function LibraryDeleteConfirmation(
+    {
+        pendingDelete,
+        isDeleting,
+        onCancel,
+        onConfirm,
+    }: LibraryDeleteConfirmationProps) {
     return (
         <div className="delete-confirmation-backdrop">
             <section

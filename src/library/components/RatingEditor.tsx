@@ -1,12 +1,13 @@
 import type {Video} from '../types'
 
-export function RatingEditor({
-                                 video,
-                                 onRatingChange,
-                             }: {
-    video: Video
-    onRatingChange: (path: string, rating: number) => Promise<boolean>
-}) {
+export function RatingEditor(
+    {
+        video,
+        onRatingChange,
+    }: {
+        video: Video
+        onRatingChange: (path: string, rating: number) => Promise<boolean>
+    }) {
     const rating = Math.max(0, Math.min(5, Number(video.rating) || 0))
 
     return (

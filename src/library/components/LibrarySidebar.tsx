@@ -14,6 +14,7 @@ type LibrarySidebarProps = {
     activePlaylistId: number | null
     setActivePlaylistId: Dispatch<SetStateAction<number | null>>
     selectedVideos: Video[]
+    onPlayPlaylist: (playlistId: number) => Promise<void>
     addVideosToPlaylist: (playlistId: number, videoPaths: string[]) => Promise<void>
     renamePlaylist: (playlistId: number, name: string) => Promise<void>
     deletePlaylist: (playlistId: number) => Promise<void>
@@ -44,6 +45,7 @@ export function LibrarySidebar(
         activePlaylistId,
         setActivePlaylistId,
         selectedVideos,
+        onPlayPlaylist,
         addVideosToPlaylist,
         renamePlaylist,
         deletePlaylist,
@@ -67,9 +69,10 @@ export function LibrarySidebar(
 
             <button
                 type="button"
-                className={`library-filter-item${selectedTags.length === 0 ? ' active' : ''}`}
-                aria-pressed={selectedTags.length === 0}
+                className={`library-filter-item${activePlaylistId === null && selectedTags.length === 0 && !untaggedOnly ? ' active' : ''}`}
+                aria-pressed={activePlaylistId === null && selectedTags.length === 0 && !untaggedOnly}
                 onClick={() => {
+                    setActivePlaylistId(null)
                     setSelectedTags([])
                     setUntaggedOnly(false)
                 }}
@@ -137,6 +140,19 @@ export function LibrarySidebar(
                             </span>
                             <span className="library-filter-count">
                                 {playlist.videoCount}
+                            </span>
+                        </button>
+
+                        <button
+                            type="button"
+                            className="playlist-icon-button"
+                            title={`Play ${playlist.name}`}
+                            aria-label={`Play ${playlist.name}`}
+                            disabled={playlist.videoCount === 0}
+                            onClick={() => void onPlayPlaylist(playlist.id)}
+                        >
+                            <span className="nf-icon" aria-hidden="true">
+                                {'\uf04b'}
                             </span>
                         </button>
 

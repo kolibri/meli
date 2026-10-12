@@ -103,7 +103,7 @@ export function LibraryToolbar(
                     type="button"
                     onClick={onSelectVisible}
                 >
-                    Select visible
+                    Select all
                 </button>
 
                 <button

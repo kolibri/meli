@@ -2,7 +2,9 @@
 import './Library.css'
 
 import {useRef, useState} from 'react'
+import {invoke} from '@tauri-apps/api/core'
 
+import type {Video} from './library/types'
 import {useStorage} from './library/hooks/useStorage'
 import {useLibrary} from './library/hooks/useLibrary'
 import {usePlaylists} from './library/hooks/usePlaylists'
@@ -54,6 +56,7 @@ export function Library() {
         setActivePlaylistId,
         playlistVideos,
         playlistError,
+        setPlaylistError,
         createPlaylist,
         renamePlaylist,
         deletePlaylist,
@@ -135,6 +138,23 @@ export function Library() {
         })
     }
 
+    async function handlePlayPlaylist(playlistId: number) {
+        try {
+            const videos =
+                activePlaylistId === playlistId && playlistVideos.length > 0
+                    ? playlistVideos
+                    : await invoke<Video[]>('load_playlist_videos', {
+                          playlistId,
+                      })
+
+            if (videos.length > 0) {
+                await handlePlayVideos(videos.map((video) => video.path))
+            }
+        } catch (error) {
+            setPlaylistError(String(error))
+        }
+    }
+
     return (
         <main className="library">
             <LibraryToolbar
@@ -173,6 +193,7 @@ export function Library() {
                     activePlaylistId={activePlaylistId}
                     setActivePlaylistId={setActivePlaylistId}
                     selectedVideos={selectedVideos}
+                    onPlayPlaylist={handlePlayPlaylist}
                     addVideosToPlaylist={addVideosToPlaylist}
                     renamePlaylist={renamePlaylist}
                     deletePlaylist={deletePlaylist}
@@ -240,13 +261,6 @@ export function Library() {
                                 }
                             >
                                 Remove selected from playlist
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => setActivePlaylistId(null)}
-                            >
-                                Back to all videos
                             </button>
                         </div>
                     )}

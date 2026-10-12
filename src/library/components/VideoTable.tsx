@@ -53,6 +53,11 @@ export function VideoTable(
         onToggleSelection,
         onPlayVideo,
         {onRatingChange, onTagsChange},
+        {
+            onRegenerateFrames: handleRegenerateFrames,
+            refreshingFrameIds,
+            frameRefreshErrors,
+        },
     )
 
     async function handleRegenerateFrames(video: Video) {
@@ -449,26 +454,6 @@ export function VideoTable(
 
                                             <tr className="video-filmstrip-row">
                                                 <td colSpan={cells.length}>
-                                                    <div className="filmstrip-actions">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => void handleRegenerateFrames(video)}
-                                                            disabled={refreshingFrameIds.has(video.id)}
-                                                            title={
-                                                                frameRefreshErrors.get(video.id) ??
-                                                                'Regenerate thumbnails for this video'
-                                                            }
-                                                        >
-                                                            {refreshingFrameIds.has(video.id)
-                                                                ? 'Regenerating thumbnails…'
-                                                                : 'Regenerate thumbnails'}
-                                                        </button>
-                                                        {frameRefreshErrors.has(video.id) && (
-                                                            <span className="filmstrip-refresh-error" role="alert">
-                                                                        {frameRefreshErrors.get(video.id)}
-                                                                    </span>
-                                                        )}
-                                                    </div>
                                                     <div className="filmstrip">
                                                         {Array.from(
                                                             {length: 10},

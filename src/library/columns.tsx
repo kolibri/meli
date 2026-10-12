@@ -24,6 +24,12 @@ type MetadataCallbacks = {
     onTagsChange: (path: string, tags: string[]) => Promise<boolean>
 }
 
+type ThumbnailCallbacks = {
+    onRegenerateFrames: (video: Video) => Promise<void>
+    refreshingFrameIds: Set<string>
+    frameRefreshErrors: Map<string, string>
+}
+
 function TagsEditor({
                         video,
                         existingTags,
@@ -286,6 +292,11 @@ export function createColumns(
     onToggleSelection: (id: string, checked: boolean) => void,
     onPlayVideo: (path: string) => void,
     {onRatingChange, onTagsChange}: MetadataCallbacks,
+    {
+        onRegenerateFrames,
+        refreshingFrameIds,
+        frameRefreshErrors,
+    }: ThumbnailCallbacks,
 ): ColumnDef<typeof features, Video>[] {
     return [
         {
@@ -374,6 +385,44 @@ export function createColumns(
                     onRatingChange={onRatingChange}
                 />
             ),
+        },
+        {
+            id: 'actions',
+            header: 'Actions',
+            size: 180,
+            enableSorting: false,
+            cell: (info) => {
+                const video = info.row.original
+                const isRefreshing = refreshingFrameIds.has(video.id)
+                const error = frameRefreshErrors.get(video.id)
+
+                return (
+                    <div className="table-actions-cell">
+                        <button
+                            type="button"
+                            onClick={() => void onRegenerateFrames(video)}
+                            disabled={isRefreshing}
+                            title={
+                                error ??
+                                'Regenerate thumbnails for this video'
+                            }
+                        >
+                            {isRefreshing
+                                ? 'Regenerating…'
+                                : 'Regenerate thumbnails'}
+                        </button>
+                        {error && (
+                            <span
+                                className="filmstrip-refresh-error"
+                                role="alert"
+                                title={error}
+                            >
+                                {error}
+                            </span>
+                        )}
+                    </div>
+                )
+            },
         },
     ]
 }

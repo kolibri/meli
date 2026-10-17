@@ -2044,7 +2044,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "meli2"
+name = "meli"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
